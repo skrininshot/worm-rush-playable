@@ -22,7 +22,7 @@ namespace WormRush.Core.Tests
             WormSim a = PlayScripted(42);
             WormSim b = PlayScripted(42);
 
-            CollectionAssert.AreEqual(TestWorld.Snapshot(a), TestWorld.Snapshot(b));
+            Assert.That(TestWorld.Snapshot(a), Is.EqualTo(TestWorld.Snapshot(b)));
         }
 
         [Test]
@@ -54,7 +54,7 @@ namespace WormRush.Core.Tests
             sim.Step(0f);
             sim.Step(-1f);
 
-            CollectionAssert.AreEqual(before, TestWorld.Snapshot(sim));
+            Assert.That(TestWorld.Snapshot(sim), Is.EqualTo(before));
         }
 
         [Test]
