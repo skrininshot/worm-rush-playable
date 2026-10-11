@@ -1,0 +1,19 @@
+{
+    "name": "WormRush.Editor",
+    "rootNamespace": "WormRush.EditorTools",
+    "references": [
+        "WormRush.Core",
+        "WormRush.Game"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

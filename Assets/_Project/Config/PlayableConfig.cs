@@ -1,0 +1,114 @@
+using UnityEngine;
+using WormRush.Core;
+
+namespace WormRush.Config
+{
+    /// <summary>
+    /// Everything a producer may want to change: simulation tunables (<see cref="Sim"/>), camera, colours, look of the
+    /// worms and food. One asset, loaded from Resources so a bare scene needs no wiring.
+    /// Defaults reproduce reference/worm-rush-playable.html.
+    /// </summary>
+    [CreateAssetMenu(fileName = "PlayableConfig", menuName = "Worm Rush/Playable Config")]
+    public sealed class PlayableConfig : ScriptableObject
+    {
+        public const string ResourcePath = "PlayableConfig";
+
+        [Header("Simulation")]
+        public SimConfig Sim = new SimConfig();
+        [Tooltip("Arena seed. 0 picks a new one every run.")]
+        public int Seed = 0;
+
+        [Header("Run")]
+        public int TargetFrameRate = 60;
+        [Tooltip("After the player dies, a tap restarts the run only once this much time has passed.")]
+        public float RestartDelaySeconds = 0.6f;
+
+        [Header("Camera and input")]
+        [Tooltip("World units visible across the shorter screen side at worm length 0.")]
+        public float ViewSpan = 480f;
+        [Tooltip("The view widens by this fraction per unit of player length.")]
+        public float ZoomOutPerLength = 0.002f;
+        public float CameraDepth = -10f;
+        [Tooltip("Pointer closer than this to the screen centre does not change the heading.")]
+        public float PointerDeadZonePixels = 6f;
+        [Tooltip("Things this far outside the screen are still drawn (grid, food, segments).")]
+        public float CullMargin = 60f;
+        [Tooltip("Depth distance between draw layers: arena, food, worms.")]
+        public float LayerDepthStep = 1f;
+
+        [Header("Arena")]
+        public Color OutsideColor = new Color32(0x04, 0x06, 0x0d, 0xff);
+        public Color ArenaColor = new Color32(0x0b, 0x10, 0x20, 0xff);
+        public Color ArenaBorderColor = new Color32(0xff, 0x3d, 0x6e, 0xff);
+        public float ArenaBorderWidth = 8f;
+        public Color GridDotColor = new Color32(0x18, 0x21, 0x3d, 0xff);
+        public float GridSpacing = 60f;
+        public float GridDotRadius = 3f;
+
+        [Header("Palette (indexed by ColorId)")]
+        public Color[] Palette =
+        {
+            new Color32(0xff, 0x5d, 0x8f, 0xff),
+            new Color32(0xff, 0xd2, 0x3f, 0xff),
+            new Color32(0x3e, 0xe6, 0xa8, 0xff),
+            new Color32(0x4c, 0xc9, 0xf0, 0xff),
+            new Color32(0xb3, 0x88, 0xff, 0xff),
+            new Color32(0xff, 0x8c, 0x42, 0xff),
+        };
+        public Color[] StripePalette =
+        {
+            new Color32(0xff, 0xd1, 0xe0, 0xff),
+            new Color32(0xff, 0xf4, 0xc2, 0xff),
+            new Color32(0xd6, 0xff, 0xf0, 0xff),
+            new Color32(0xe0, 0xfb, 0xff, 0xff),
+            new Color32(0xef, 0xe3, 0xff, 0xff),
+            new Color32(0xff, 0xe0, 0xc9, 0xff),
+        };
+
+        [Header("Food")]
+        public float FoodGlowAlpha = 0.25f;
+        public float FoodGlowScale = 2.2f;
+        public float FoodPulseAmount = 0.15f;
+        public float FoodPulseSpeed = 3f;
+
+        [Header("Worms")]
+        [Tooltip("The body alternates between the two palette colours every this many segments.")]
+        public int StripeLength = 4;
+        public Color ShadowColor = new Color(0f, 0f, 0f, 0.35f);
+        public Vector2 ShadowOffset = new Vector2(3f, -4f);
+        public Color EyeColor = Color.white;
+        public Color PupilColor = new Color32(0x11, 0x11, 0x11, 0xff);
+        [Tooltip("Eye geometry, in worm radii.")]
+        public float EyeForward = 0.35f;
+        public float EyeSide = 0.45f;
+        public float EyeRadius = 0.38f;
+        public float PupilRadius = 0.2f;
+        public float PupilForward = 0.14f;
+
+        [Header("Rendering")]
+        [Tooltip("Instanced circle shader. Assigned by the editor tool; kept as a reference so builds include it.")]
+        public Shader CircleShader;
+
+        public static PlayableConfig Load()
+        {
+            PlayableConfig config = Resources.Load<PlayableConfig>(ResourcePath);
+            return config != null ? config : CreateInstance<PlayableConfig>();
+        }
+
+        public Color PrimaryColor(int colorId)
+        {
+            return Palette[Mathf.Abs(colorId) % Palette.Length];
+        }
+
+        public Color SecondaryColor(int colorId)
+        {
+            return StripePalette[Mathf.Abs(colorId) % StripePalette.Length];
+        }
+
+        void OnValidate()
+        {
+            if (Palette != null && Palette.Length > 0) Sim.ColorCount = Palette.Length;
+            if (StripeLength < 1) StripeLength = 1;
+        }
+    }
+}
