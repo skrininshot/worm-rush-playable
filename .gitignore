@@ -47,6 +47,10 @@ ExportedObj/
 *.unityproj
 *.sln
 *.slnx
+# ...except the plain .NET test project for Core (build output stays ignored)
+!/CoreTests/CoreTests.csproj
+/CoreTests/bin/
+/CoreTests/obj/
 *.suo
 *.tmp
 *.user
