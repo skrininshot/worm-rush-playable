@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git add*)",
+      "Bash(git commit*)", "Bash(git checkout*)", "Bash(git switch*)", "Bash(git pull*)",
+      "Bash(git push -u origin stage-*)", "Bash(git branch*)",
+      "Bash(gh pr create*)", "Bash(gh pr view*)", "Bash(gh pr list*)",
+      "Bash(dotnet test*)", "Bash(dotnet build*)"
+    ],
+    "deny": [
+      "Read(./Library/**)", "Read(./Temp/**)", "Read(./Logs/**)", "Read(./UserSettings/**)",
+      "Read(./obj/**)", "Read(./Build/**)", "Read(./*.csproj)", "Read(./*.sln)",
+      "Read(./Packages/packages-lock.json)",
+      "Bash(git push --force*)", "Bash(git push origin main*)", "Bash(git reset --hard*)"
+    ]
+  }
+}

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Worm Rush — playable ad prototype</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0b1020;touch-action:none;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;user-select:none;-webkit-user-select:none}
+canvas{display:block;width:100%;height:100%}
+#len{position:fixed;top:14px;left:50%;transform:translateX(-50%);color:#fff;font-weight:800;font-size:20px;text-shadow:0 2px 6px #000b;pointer-events:none;white-space:nowrap}
+#cta{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);padding:12px 30px;border:0;border-radius:30px;background:linear-gradient(#ffd23f,#ff9f1c);color:#3a1c00;font-weight:900;font-size:17px;box-shadow:0 4px 0 #b86a00,0 6px 16px #0008;cursor:pointer}
+#end{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(8,12,28,.78);color:#fff;text-align:center;cursor:pointer;padding:16px;box-sizing:border-box}
+#et{font-size:44px;font-weight:900;letter-spacing:1px;text-shadow:0 4px 0 #ff5d8f,0 8px 20px #000a;animation:pop .5s ease-out}
+#es{font-size:18px;opacity:.9;max-width:320px}
+#eb{margin-top:18px;padding:16px 46px;border:0;border-radius:36px;background:linear-gradient(#3ee6a8,#18b47f);color:#03261a;font-weight:900;font-size:24px;box-shadow:0 5px 0 #0b7a54,0 8px 22px #000a;animation:pulse 1s ease-in-out infinite;cursor:pointer}
+@keyframes pulse{50%{transform:scale(1.08)}}
+@keyframes pop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="len">Length: 0</div>
+<button id="cta">PLAY NOW</button>
+<div id="end"><div id="et">AWESOME!</div><div id="es"></div><button id="eb">PLAY NOW</button></div>
+<script>
+(function(){
+// ---- Store / ad network bridge (replace links per campaign) ----
+var STORE={ios:'https://apps.apple.com/',android:'https://play.google.com/store/apps'};
+function openStore(){
+  var u=/iPhone|iPad|iPod/i.test(navigator.userAgent)?STORE.ios:STORE.android;
+  try{if(window.mraid&&mraid.open){mraid.open(u);return}}catch(e){}
+  window.open(u,'_blank');
+}
+document.getElementById('cta').onclick=openStore;
+document.getElementById('end').onclick=openStore;
+
+// ---- Setup ----
+var cv=document.getElementById('c'),ctx=cv.getContext('2d'),W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR|0;cv.height=H*DPR|0}
+addEventListener('resize',resize);resize();
+
+var R=1000,SEG=5,TAU=Math.PI*2;
+function rnd(a,b){return a+Math.random()*(b-a)}
+var COLORS=['#ff5d8f','#ffd23f','#3ee6a8','#4cc9f0','#b388ff','#ff8c42'];
+var food=[],parts=[],pops=[];
+function addFood(x,y,v,c){v=v||1;food.push({x:x,y:y,v:v,r:2.5+v*1.6,c:c||COLORS[Math.random()*COLORS.length|0],ph:rnd(0,TAU)})}
+function randPt(m){var a=rnd(0,TAU),d=Math.sqrt(Math.random())*(R-m);return{x:Math.cos(a)*d,y:Math.sin(a)*d}}
+for(var i=0;i<380;i++){var p=randPt(30);addFood(p.x,p.y)}
+
+function Worm(x,y,len,c1,c2,isP){
+  this.c1=c1;this.c2=c2;this.isP=isP;this.len=len;this.ang=isP?-Math.PI/2:rnd(0,TAU);this.want=this.ang;
+  this.speed=isP?150:115;this.alive=true;this.pts=[];this.think=0;this.tx=x;this.ty=y;
+  for(var i=0;i<len;i++)this.pts.push({x:x-Math.cos(this.ang)*i*SEG,y:y-Math.sin(this.ang)*i*SEG});
+}
+Worm.prototype.r=function(){return 7+Math.min(this.len,160)*0.05};
+Worm.prototype.grow=function(v){this.len+=v*0.6;while(this.pts.length<Math.floor(this.len)){var t=this.pts[this.pts.length-1];this.pts.push({x:t.x,y:t.y})}};
+Worm.prototype.update=function(dt){
+  var d=this.want-this.ang;d=Math.atan2(Math.sin(d),Math.cos(d));
+  var tr=4.2*dt;this.ang+=Math.max(-tr,Math.min(tr,d));
+  var h=this.pts[0];h.x+=Math.cos(this.ang)*this.speed*dt;h.y+=Math.sin(this.ang)*this.speed*dt;
+  for(var i=1;i<this.pts.length;i++){var a=this.pts[i-1],b=this.pts[i],dx=a.x-b.x,dy=a.y-b.y,dd=Math.hypot(dx,dy);
+    if(dd>SEG){var k=(dd-SEG)/dd;b.x+=dx*k;b.y+=dy*k}}
+};
+
+var player=new Worm(0,0,24,'#4cc9f0','#e0fbff',true);
+var defs=[['#ff5d8f','#ffd1e0',18],['#ffd23f','#fff4c2',30],['#3ee6a8','#d6fff0',26],['#b388ff','#efe3ff',40],['#ff8c42','#ffe0c9',20]];
+var bots=defs.map(function(d,i){var a=i/defs.length*TAU+0.6,dist=i===0?280:rnd(420,820);return new Worm(Math.cos(a)*dist,Math.sin(a)*dist,d[2],d[0],d[1],false)});
+var victim=bots[0],worms=[player].concat(bots);
+
+var t=0,startT=0,started=false,endAt=0,endWin=true,ended=false,kills=0,shake=0,lastSfx=0,streak=0,running=false;
+
+// ---- Audio (starts on first touch, as browsers require) ----
+var ac=null;
+function audioInit(){try{ac=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+function sfx(f,d,type,vol){if(!ac)return;var o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.value=f;
+  g.gain.setValueAtTime(vol||0.07,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d)}
+
+// ---- Input: worm steers toward the finger (player is always at screen centre) ----
+var pointer=null;
+cv.addEventListener('pointerdown',function(e){pointer={x:e.clientX,y:e.clientY};if(!started){started=true;startT=t;audioInit()}});
+cv.addEventListener('pointermove',function(e){if(started)pointer={x:e.clientX,y:e.clientY}});
+
+// ---- Game logic ----
+function popup(x,y,txt,c,s){pops.push({x:x,y:y,txt:txt,c:c,s:s||1,life:1.2})}
+function burst(x,y,c){for(var i=0;i<26;i++){var a=rnd(0,TAU),s=rnd(60,260);parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(.4,.9),c:c})}}
+
+function kill(a,by){
+  a.alive=false;
+  for(var i=0;i<a.pts.length;i+=2){var p=a.pts[i];addFood(p.x+rnd(-6,6),p.y+rnd(-6,6),3,a.c1)}
+  burst(a.pts[0].x,a.pts[0].y,a.c1);
+  if(ended)return;
+  if(by===player){kills++;shake=.35;popup(a.pts[0].x,a.pts[0].y-20,'+1 KILL!','#ffd23f',1.6);sfx(660,.12,'square',.06);setTimeout(function(){sfx(990,.2,'square',.06)},110);if(!endAt)endAt=t+1.8}
+  if(a===player){shake=.5;endWin=false;sfx(140,.45,'sawtooth',.08);endAt=t+1.1}
+}
+
+function botAI(b,dt){
+  var h=b.pts[0];b.think-=dt;
+  if(b===victim&&started&&t-startT>4&&player.alive){
+    // scripted climax: the small worm cuts across the player's body
+    var m=player.pts[Math.min(player.pts.length-1,Math.floor(player.pts.length*.45))];b.tx=m.x;b.ty=m.y;b.speed=140;
+  }else if(b.think<=0){
+    b.think=rnd(.8,2);var best=null,bd=1e9;
+    for(var k=0;k<12;k++){var f=food[Math.random()*food.length|0];if(!f)break;var dd=Math.hypot(f.x-h.x,f.y-h.y);if(dd<bd){bd=dd;best=f}}
+    if(best){b.tx=best.x;b.ty=best.y}
+  }
+  if(Math.hypot(h.x,h.y)>R-120){b.tx=0;b.ty=0}
+  b.want=Math.atan2(b.ty-h.y,b.tx-h.x);
+}
+
+function collisions(){
+  for(var i=0;i<worms.length;i++){var a=worms[i];if(!a.alive)continue;var h=a.pts[0],ar=a.r(),dc=Math.hypot(h.x,h.y);
+    if(dc>R-ar){if(a.isP){var k=(R-ar)/dc;h.x*=k;h.y*=k}else{kill(a,null);continue}}
+    if(a.isP&&!started)continue;
+    for(var j=0;j<worms.length&&a.alive;j++){var b=worms[j];if(b===a||!b.alive)continue;var rr=ar*.5+b.r();
+      for(var s=2;s<b.pts.length;s++){var p=b.pts[s],dx=p.x-h.x,dy=p.y-h.y;if(dx*dx+dy*dy<rr*rr){kill(a,b);break}}}}
+}
+
+function eat(dt){
+  for(var i=0;i<worms.length;i++){var w=worms[i];if(!w.alive)continue;var h=w.pts[0],wr=w.r();
+    for(var k=food.length-1;k>=0;k--){var f=food[k],dx=h.x-f.x,dy=h.y-f.y,d2=dx*dx+dy*dy;
+      if(w.isP&&d2<(wr+44)*(wr+44)){var d=Math.sqrt(d2)||1;f.x+=dx/d*240*dt;f.y+=dy/d*240*dt}
+      if(d2<(wr+f.r)*(wr+f.r)){food.splice(k,1);w.grow(f.v);
+        if(w.isP){streak++;if(t-lastSfx>.05){sfx(420+Math.min(streak,24)*28,.06,'sine',.05);lastSfx=t}if(f.v>1)popup(f.x,f.y,'+'+f.v,'#fff',.8)}}}}
+  while(food.length<380){var p=randPt(30);addFood(p.x,p.y)}
+}
+
+function showEnd(){
+  ended=true;
+  document.getElementById('et').textContent=endWin?(kills?'AWESOME!':'NICE MOVES!'):'SO CLOSE!';
+  document.getElementById('es').textContent=endWin?'Grow into the longest worm in the arena!':'Come back and take your revenge!';
+  document.getElementById('end').style.display='flex';document.getElementById('cta').style.display='none';
+  sfx(523,.15,'triangle');setTimeout(function(){sfx(784,.3,'triangle')},140);
+}
+
+// ---- Rendering ----
+var lenEl=document.getElementById('len');
+function drawWorm(w){
+  var r=w.r(),n=w.pts.length,i,p;
+  ctx.fillStyle='rgba(0,0,0,.35)';
+  for(i=n-1;i>=0;i--){p=w.pts[i];ctx.beginPath();ctx.arc(p.x+3,p.y+4,r,0,TAU);ctx.fill()}
+  for(i=n-1;i>=0;i--){p=w.pts[i];ctx.fillStyle=(Math.floor(i/4)%2)?w.c2:w.c1;ctx.beginPath();ctx.arc(p.x,p.y,r,0,TAU);ctx.fill()}
+  var h=w.pts[0],ca=Math.cos(w.ang),sa=Math.sin(w.ang);
+  for(var e=-1;e<=1;e+=2){var ex=h.x+ca*r*.35-sa*r*.45*e,ey=h.y+sa*r*.35+ca*r*.45*e;
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(ex,ey,r*.38,0,TAU);ctx.fill();
+    ctx.fillStyle='#111';ctx.beginPath();ctx.arc(ex+ca*r*.14,ey+sa*r*.14,r*.2,0,TAU);ctx.fill()}
+}
+
+function render(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);ctx.fillStyle='#0b1020';ctx.fillRect(0,0,W,H);
+  var z=Math.min(W,H)/480/(1+player.len*.002),sx=0,sy=0;
+  if(shake>0){sx=rnd(-1,1)*shake*18;sy=rnd(-1,1)*shake*18}
+  var cx=player.pts[0].x,cy=player.pts[0].y;
+  ctx.translate(W/2+sx,H/2+sy);ctx.scale(z,z);ctx.translate(-cx,-cy);
+  var g=60,hw=W/2/z+g,hh=H/2/z+g,x0=Math.floor((cx-hw)/g)*g,y0=Math.floor((cy-hh)/g)*g,x,y;
+  ctx.fillStyle='#18213d';
+  for(y=y0;y<cy+hh;y+=g)for(x=x0;x<cx+hw;x+=g){ctx.beginPath();ctx.arc(x+(((y/g)%2+2)%2?g/2:0),y,3,0,TAU);ctx.fill()}
+  ctx.fillStyle='#04060d';ctx.beginPath();ctx.rect(cx-hw,cy-hh,hw*2,hh*2);ctx.arc(0,0,R,0,TAU,true);ctx.fill();
+  ctx.strokeStyle='#ff3d6e';ctx.lineWidth=8;ctx.beginPath();ctx.arc(0,0,R,0,TAU);ctx.stroke();
+  for(var i=0;i<food.length;i++){var f=food[i];if(Math.abs(f.x-cx)>hw||Math.abs(f.y-cy)>hh)continue;
+    var fr=f.r*(1+.15*Math.sin(t*3+f.ph));ctx.globalAlpha=.25;ctx.fillStyle=f.c;ctx.beginPath();ctx.arc(f.x,f.y,fr*2.2,0,TAU);ctx.fill();
+    ctx.globalAlpha=1;ctx.beginPath();ctx.arc(f.x,f.y,fr,0,TAU);ctx.fill()}
+  for(i=worms.length-1;i>=0;i--)if(worms[i].alive)drawWorm(worms[i]);
+  for(i=0;i<parts.length;i++){var p=parts[i];ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,5,0,TAU);ctx.fill()}
+  ctx.globalAlpha=1;ctx.textAlign='center';
+  for(i=0;i<pops.length;i++){var q=pops[i];ctx.globalAlpha=Math.min(1,q.life*2);ctx.font='900 '+(26*q.s)+'px system-ui,sans-serif';
+    ctx.lineWidth=5;ctx.strokeStyle='#000';ctx.strokeText(q.txt,q.x,q.y);ctx.fillStyle=q.c;ctx.fillText(q.txt,q.x,q.y)}
+  ctx.globalAlpha=1;
+  // screen-space hints
+  ctx.setTransform(DPR,0,0,DPR,0,0);ctx.textAlign='center';
+  if(!started){
+    var hx=W/2+Math.sin(t*2.5)*70,hy=H*.72;
+    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(W/2-70,hy);ctx.lineTo(W/2+70,hy);ctx.stroke();
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(hx,hy,18+Math.sin(t*5)*3,0,TAU);ctx.fill();
+    ctx.font='900 24px system-ui,sans-serif';ctx.lineWidth=5;ctx.strokeStyle='#000';ctx.strokeText('DRAG TO MOVE',W/2,hy-44);ctx.fillText('DRAG TO MOVE',W/2,hy-44);
+  }else if(!ended&&player.alive&&kills===0&&t-startT>3.5&&t-startT<7){
+    ctx.font='900 22px system-ui,sans-serif';ctx.lineWidth=5;ctx.strokeStyle='#000';ctx.fillStyle='#ffd23f';
+    ctx.strokeText('Block their path!',W/2,70);ctx.fillText('Block their path!',W/2,70);
+  }
+  lenEl.textContent='Length: '+Math.floor(player.len*10);
+}
+
+// ---- Loop ----
+var last=0;
+function frame(now){
+  var dt=Math.min(.033,(now-last)/1000||0);last=now;t+=dt;
+  if(player.alive){if(started&&pointer)player.want=Math.atan2(pointer.y-H/2,pointer.x-W/2);else if(!started)player.want+=dt*.7}
+  for(var i=0;i<bots.length;i++)if(bots[i].alive)botAI(bots[i],dt);
+  for(i=0;i<worms.length;i++)if(worms[i].alive)worms[i].update(dt);
+  eat(dt);collisions();
+  for(i=parts.length-1;i>=0;i--){var p=parts[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.92;p.vy*=.92;p.life-=dt;if(p.life<=0)parts.splice(i,1)}
+  for(i=pops.length-1;i>=0;i--){pops[i].y-=40*dt;pops[i].life-=dt;if(pops[i].life<=0)pops.splice(i,1)}
+  shake=Math.max(0,shake-dt);
+  if(started&&!endAt&&t-startT>25)endAt=t;
+  if(endAt&&t>=endAt&&!ended)showEnd();
+  render();requestAnimationFrame(frame);
+}
+function boot(){if(running)return;running=true;requestAnimationFrame(function(n){last=n;requestAnimationFrame(frame)})}
+if(window.mraid&&mraid.getState&&mraid.getState()==='loading')mraid.addEventListener('ready',boot);else boot();
+})();
+</script>
+</body>
+</html>
