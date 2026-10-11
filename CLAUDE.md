@@ -44,6 +44,11 @@ Entry points: `/stage N` starts a stage, `/finish` closes it. Steps they run:
   grep -E "error CS|Scripts have compiler errors|Exiting batchmode" "<scratchpad>/unity-compile.log"
   ```
   Success = exit code 0 and no `error CS` lines. Write the log to the scratchpad and grep it; never read it whole.
+- **Render check** (about 30 s, needs the GPU, so run it **without** `-nographics`): draws the real sim through the real renderer and saves a PNG you can `Read` to see the result:
+  ```
+  Unity.exe -batchmode -quit -projectPath "$(pwd -W)" -logFile "<scratchpad>/unity-shot.log"     -executeMethod WormRush.EditorTools.ScreenshotCapture.Run     -shotPath "<scratchpad>/shot.png" -shotWidth 540 -shotHeight 960 -shotSeconds 6 [-shotViewSpan 480 -shotHeading 0.6 -shotSeed 7]
+  ```
+  `...ScreenshotCapture.Benchmark` (with `-nographics` is fine) prints CPU ms per frame of sim + draw submission. Use both for any View change; the PR's "Check in editor" is then only feel and device.
   It fails if the editor already has this project open (check `tasklist | grep -i Unity.exe`). Then grep `error CS` in `%LOCALAPPDATA%\Unity\Editor\Editor.log` instead, or ask the user to close the editor only if that is not enough.
 - Unity-side code (View/Flow/Ad) is not covered by `dotnet test`; the compile check is its minimum bar. Keep logic in Core where it can be unit-tested, keep View thin.
 - Never read `Library/`, `Temp/`, `Logs/` or the generated `*.csproj` in the repo root — huge and useless. (`CoreTests/CoreTests.csproj` is hand-written and fine.)
