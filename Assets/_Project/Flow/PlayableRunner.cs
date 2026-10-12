@@ -8,15 +8,20 @@ namespace WormRush.Flow
 {
     /// <summary>
     /// The playable's driver: owns the sim, the PlayableFlow beat sheet, the world and UI views and the ad network.
-    /// Each frame: input, sim step, flow update, draw. What a tap means depends on where it lands and on the flow:
+    /// Each frame: input, sim step, flow update, juice (shake, particles, popups, sounds), draw. What a tap means depends on where it lands and on the flow:
     /// the CTA button or anywhere on the end card goes to the store, everywhere else it steers (and the very
     /// first one starts the run).
     /// </summary>
     public sealed class PlayableRunner : MonoBehaviour
     {
+        // Juice has its own random stream so it never disturbs the sim's seeded one.
+        const int JuiceSeedMask = 0x4A55;
+
         PlayableConfig _config;
         WormSim _sim;
         PlayableFlow _flow;
+        JuiceState _juice;
+        SoundBank _sound;
         WorldView _world;
         CameraFollow _camera;
         PointerInput _input;
@@ -68,6 +73,7 @@ namespace WormRush.Flow
             _camera = new CameraFollow(camera, _config);
             _input = new PointerInput();
             _ui = PlayableUi.Create(_config, camera);
+            _sound = new SoundBank(_config, camera);
             _ad = AdNetworks.Create(_config);
             NewRun();
             _ad.GameReady();
@@ -77,6 +83,7 @@ namespace WormRush.Flow
         {
             if (_world != null) _world.Dispose();
             if (_ui != null) _ui.Dispose();
+            if (_sound != null) _sound.Dispose();
         }
 
         void Update()
@@ -95,8 +102,12 @@ namespace WormRush.Flow
             if (_input.PressedThisFrame && (ended || overCta)) OpenStore();
             else if (!ended && !overCta) HandleSteering();
 
-            _sim.Step(Time.deltaTime);
+            float step = Mathf.Min(Time.deltaTime, _config.Sim.MaxStepSeconds);
+            _sim.Step(step);
             _flow.Update();
+            _juice.Update(_sim, _flow, step);
+            for (int i = 0; i < _juice.Sounds.Count; i++) _sound.Play(_juice.Sounds[i], Time.time);
+            _sound.Update(Time.time);
 
             if (_flow.State == FlowState.EndCard && !_endReported)
             {
@@ -104,9 +115,12 @@ namespace WormRush.Flow
                 _ad.GameEnd();
             }
 
-            ViewBounds view = _camera.Apply(_sim.Player);
-            _world.Draw(_sim, view);
+            // The shake is in UI units; the camera wants pixels of this screen.
+            float shakeScale = PlayableUi.ScaleFor(Screen.width, Screen.height);
+            ViewBounds view = _camera.Apply(_sim.Player, _juice.ShakeX * shakeScale, _juice.ShakeY * shakeScale);
+            _world.Draw(_sim, view, _juice);
             _ui.Present(_flow, _sim, Time.time, Screen.width, Screen.height);
+            _ui.PresentPopups(_juice, Screen.width, Screen.height);
         }
 
         void HandleSteering()
@@ -132,6 +146,7 @@ namespace WormRush.Flow
             int seed = _config.Seed != 0 ? _config.Seed : System.Environment.TickCount;
             _sim = new WormSim(_config.Sim, seed);
             _flow = new PlayableFlow(_sim);
+            _juice = new JuiceState(_config.Juice, seed ^ JuiceSeedMask);
             _endReported = false;
             _runCount++;
         }

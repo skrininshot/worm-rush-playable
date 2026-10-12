@@ -26,12 +26,24 @@ namespace WormRush.View
         /// <summary>Moves the camera onto the player and returns the world rectangle it now sees.</summary>
         public ViewBounds Apply(Worm player)
         {
-            Vec2 head = player.Head;
-            _camera.transform.position = new Vector3(head.X, head.Y, _config.CameraDepth);
-            _camera.orthographicSize = ViewMath.OrthoSize(_camera.aspect, _config.ViewSpan, player.Length, _config.ZoomOutPerLength);
+            return Apply(player, 0f, 0f);
+        }
 
+        /// <summary>
+        /// Same, with the picture knocked off the player by a shake of (<paramref name="shakeX"/>, <paramref name="shakeY"/>)
+        /// screen pixels. The returned rectangle is the shaken one, so culling follows what is really on screen.
+        /// </summary>
+        public ViewBounds Apply(Worm player, float shakeX, float shakeY)
+        {
+            Vec2 head = player.Head;
+            _camera.orthographicSize = ViewMath.OrthoSize(_camera.aspect, _config.ViewSpan, player.Length, _config.ZoomOutPerLength);
             float halfHeight = _camera.orthographicSize;
-            return new ViewBounds(head.X, head.Y, halfHeight * _camera.aspect, halfHeight);
+
+            float worldPerPixel = _camera.pixelHeight > 0 ? 2f * halfHeight / _camera.pixelHeight : 0f;
+            float x = head.X + shakeX * worldPerPixel;
+            float y = head.Y + shakeY * worldPerPixel;
+            _camera.transform.position = new Vector3(x, y, _config.CameraDepth);
+            return new ViewBounds(x, y, halfHeight * _camera.aspect, halfHeight);
         }
     }
 }

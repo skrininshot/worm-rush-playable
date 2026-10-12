@@ -5,17 +5,19 @@ using WormRush.Core;
 namespace WormRush.View
 {
     /// <summary>
-    /// Draws a WormSim: arena, food, worms. Three instanced layers, drawn back to front;
-    /// the whole picture is a handful of draw calls regardless of how many segments exist.
+    /// Draws a WormSim: arena, food, worms, and the burst particles on top. Four instanced layers, drawn back to
+    /// front; the whole picture is a handful of draw calls regardless of how many segments exist.
     /// </summary>
     public sealed class WorldView
     {
         readonly CircleBatch _arenaBatch;
         readonly CircleBatch _foodBatch;
         readonly CircleBatch _wormBatch;
+        readonly CircleBatch _fxBatch;
         readonly ArenaRenderer _arena;
         readonly FoodRenderer _food;
         readonly WormRenderer _worms;
+        readonly ParticleRenderer _particles;
         readonly Mesh _mesh;
         readonly Material _material;
 
@@ -46,20 +48,25 @@ namespace WormRush.View
             _arenaBatch = new CircleBatch(_mesh, _material, step * 2f, bounds);
             _foodBatch = new CircleBatch(_mesh, _material, step, bounds);
             _wormBatch = new CircleBatch(_mesh, _material, 0f, bounds);
+            _fxBatch = new CircleBatch(_mesh, _material, -step, bounds);
 
             _arena = new ArenaRenderer(config, palette, _arenaBatch);
             _food = new FoodRenderer(config, palette, _foodBatch);
             _worms = new WormRenderer(config, palette, _wormBatch);
+            _particles = new ParticleRenderer(config, palette, _fxBatch);
         }
 
-        public void Draw(WormSim sim, in ViewBounds view)
+        /// <param name="juice">Source of the burst particles; null draws the world alone.</param>
+        public void Draw(WormSim sim, in ViewBounds view, JuiceState juice = null)
         {
             _arena.Draw(view);
             _food.Draw(sim, view);
             _worms.Draw(sim, view);
+            if (juice != null) _particles.Draw(juice, view);
             _arenaBatch.Flush();
             _foodBatch.Flush();
             _wormBatch.Flush();
+            _fxBatch.Flush();
         }
 
         public void Dispose()
