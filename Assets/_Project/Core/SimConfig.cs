@@ -72,6 +72,14 @@ namespace WormRush.Core
         public float VictimKeepOutFraction = 0.6f;      // and steers outward if it gets closer than this fraction of that distance
         public bool VictimGuarantee = true;             // see WormSim: only the player's body kills it, and only once scripted
 
+        // ---- Flow (see PlayableFlow) ----
+        public float IntroSeconds = 0.5f;               // before the first tap: the hint fades in over this long
+        public float BlockHintStartSeconds = 3.5f;      // "Block their path!" shows from here (seconds after the first tap) ...
+        public float BlockHintEndSeconds = 7f;          // ... until here, or until the first kill
+        public float EndAfterKillSeconds = 1.8f;        // end card this long after the player's first kill
+        public float EndAfterDeathSeconds = 1.1f;       // ... or this long after the player dies
+        public float MaxPlaySeconds = 25f;              // ... or this long after the first tap, whichever comes first
+
         public int BotCount
         {
             get { return BotStartLengths.Length; }

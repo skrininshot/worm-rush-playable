@@ -12,10 +12,10 @@ namespace WormRush.Flow
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Run()
         {
-            if (Object.FindFirstObjectByType<SimRunner>() != null) return;
+            if (Object.FindFirstObjectByType<PlayableRunner>() != null) return;
 
             GameObject root = new GameObject("WormRush");
-            SimRunner runner = root.AddComponent<SimRunner>();
+            PlayableRunner runner = root.AddComponent<PlayableRunner>();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             root.AddComponent<DebugOverlay>().Runner = runner;
 #endif

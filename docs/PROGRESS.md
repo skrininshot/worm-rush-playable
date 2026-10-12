@@ -5,7 +5,8 @@ Short handoff for the next session. Keep each entry under ~15 lines.
 ## Current state
 - Stage **1 — Core simulation**: merged (PR #1).
 - Stage **2 — View + controls**: merged (PR #2).
-- Stage **3 — Bots + collisions**: PR open, waiting for the user's review/merge. `dotnet test CoreTests` green (67/67); Unity compile NOT run headless (editor had the project open), Core verified with Unity's own Roslyn at C# 9. Next: stage 4, only when the user says `/stage 4`.
+- Stage **3 — Bots + collisions**: merged (PR #3).
+- Stage **4 — Flow + end card**: PR open, waiting for the user's review/merge. `dotnet test CoreTests` green (81/81), Unity compile headless exit 0, render check done for tutorial / play / end card (portrait) and tutorial (landscape). Next: stage 5, only when the user says `/stage 5`.
 - Repo contains: CLAUDE.md, docs/SPEC.md, reference HTML prototype, `Assets/_Project/{Core,Config,View,Flow,Editor,Resources}`, `CoreTests/`.
 - Press Play in `SampleScene` (or any scene with a camera): `Flow/Bootstrap` creates everything from code.
 
@@ -43,7 +44,7 @@ Known issues / TODO:
 - `.claude/settings.json` has an uncommitted change by the user (csproj deny rule removed); left untouched.
 Where Claude went wrong and how it was caught: no wrong turn caught this stage. The risk was handing over a renderer nobody had seen, since Play cannot be pressed from here; a headless `camera.Render()` to PNG removes most of it (and exercised the 1023-instance chunking with a zoomed-out shot). What it cannot cover is input and real-time feel.
 
-## Stage 3 — Bots + collisions (PR open, not merged)
+## Stage 3 — Bots + collisions (PR #3, merged 2026-10-12)
 Done: `BotBrain` is the reference AI: nearest of 12 random pellets, retarget every 0.8-2 s (per bot, seeded), head for the centre inside 120 units of the edge. Collisions were already in the sim (stage 1); stage 3 made them reachable by real bots and added the climax guarantee. New `SimConfig` knobs: `BotFoodSamples`, `BotRetargetMin/Max`, `BotEdgeMargin`, `VictimSpeedRamp`, `VictimMaxSpeed`, `VictimLoiterDistance`, `VictimKeepOutFraction`, `VictimGuarantee`. 28 new tests, 1 obsolete one replaced (67 total): bot AI, victim rules, and `ClimaxTests` (a harness plays the full default game with stand-in players over fixed seeds).
 Acceptance (victim dies on the player 8-15 s into the clip, tap at 3 s; 100 seeds, players that steer round bodies): straight 98%, circling 93%, nearest-food 99%, flees-the-victim 99%; tap at 1 s (window shifts with it, +5..+12 s): 100/95/100/100%. In every run where the player stays alive the victim dies, and only ever on the player's body (the victim never survives 30 s). CI keeps 50 seeds x 4 players at >= 90%.
 Decisions (these change the reference behaviour; flip `VictimGuarantee` to get the plain reference):
@@ -61,7 +62,26 @@ Known issues / TODO:
 - Stage 4 hook: the Flow can show "Block their path!" when `sim.Worms[sim.Config.VictimBotIndex].VictimScriptActive` flips to true; the kill is a `Killed` event with `OtherId == player.Id` for that worm.
 Where Claude went wrong and how it was caught: the first acceptance probe showed the plain ported AI at 6-40% in the window and the *player* dying in 10-16% of runs. Initial reading was "the bot AI is too weak", but the killer ids were nearly always the same bot: the blind stand-in pilot was driving straight into it. Splitting the numbers by killer id (and giving the pilots a human-like "turn away from bodies" step) separated pilot stupidity from AI behaviour before any AI tuning was done on a wrong signal. The second catch: the guarantee flag silently made the lone test bot (which is also the victim) immortal in 8 older tests; they passed before only because the bot happened to be the victim. `OneBot()` is now a plain bot and `OneVictim()` is explicit.
 
+## Stage 4 — Flow + end card (PR open, not merged)
+Done: the whole 25-second loop is playable in the editor. Core `PlayableFlow` (Intro → Tutorial → Play → Climax → EndCard, 11 tests; +3 for `ViewMath.UiScale`, 81 total) decides what the screen shows and when it ends: kill + 1.8 s, 25 s after the first tap, or player death + 1.1 s (death overrides a pending kill and gives SO CLOSE; AWESOME needs a kill, NICE MOVES is a 25 s survivor). `Ad/`: `IAdNetwork` (GameReady, OpenStore, GameEnd), `EditorAdNetwork` (logs, opens nothing), `WebAdNetwork` + `Plugins/WebGL/WormRushAd.jslib` (`mraid.open`, else `window.open`, retried on the next pointerup if the popup blocker eats it), `AdNetworks` factory. `View/PlayableUi` + `UiKit`: uGUI canvas built from code with the length counter, persistent CTA, tutorial hand, "Block their path!" and the end card (title pop, pulsing button), layout in the reference's CSS px (390x844). `SimRunner` became `PlayableRunner`: input, sim, flow, draw; a tap on the CTA or anywhere on the end card calls `IAdNetwork.OpenStore`. `ScreenshotCapture` got `-shotState play|tutorial|end` and draws the UI too.
+Decisions:
+- The state machine lives in Core (`Core/PlayableFlow.cs`), not in `Flow/` as SPEC §3 sketches, so `dotnet test` covers it; the Unity side of Flow only drives it. Timings are `SimConfig` fields (`IntroSeconds`, `BlockHint*`, `EndAfter*`, `MaxPlaySeconds`); texts, store URLs and button colours are `PlayableConfig` fields.
+- UI is uGUI `Text` + two procedural sprites (circle, 9-sliced pill), built-in `LegacyRuntime.ttf`. No TextMeshPro (needs editor-imported resources), no IMGUI (GC, slow on phones), no EventSystem, no CanvasScaler: the CTA is hit-tested by `PlayableUi.IsOverCta` and the scale is `ViewMath.UiScale` (tested), set from the render-target size so the render check lays out exactly as a device does. Canvas is Screen Space - Camera with sorting order 100, so it is captured by `camera.Render()`.
+- Reference semantics kept on purpose: an un-tapped ad never ends; the sim keeps running under the end card; pressing the CTA never starts the run; a pending end is not replaced by the 25 s limit.
+- The "hand" is the reference's white dot sliding on a track with "DRAG TO MOVE" above it, not a drawn hand.
+- Stage 2's click-after-death restart is gone; `R` restarts in editor and development builds only.
+- Store URLs are the reference's placeholders (`apps.apple.com`, `play.google.com/store/apps`); real ones go into `PlayableConfig` / the stage 6 URL parameters.
+Known issues / TODO:
+- `WebAdNetwork` and the `.jslib` have never run: the platform is still not Web and there is no Web build before stage 7. Compiled with `UNITY_WEBGL` defined against Unity's DLLs, nothing more.
+- Draw calls: not measurable headless. By batching rules ~3-4 world + ~6 UI (fonts and the two sprites break batches); `DebugOverlay` prints the real `batches` in the editor.
+- The built-in dynamic font ships in the Web build; stage 7 may swap it for a subset atlas.
+- Not seen with eyes: pop, pulse and the dot animation (only stills), touch hit area of the CTA on a real phone.
+- `PlayableConfig.RestartDelaySeconds` was removed; the stale key stays in `PlayableConfig.asset` until it is re-saved.
+Where Claude went wrong and how it was caught: (1) the first flow tests passed the victim through the scenario with a free-running AI, so "far away" was only true for a few seconds and the kill came early; caught by reasoning about the loiter ring before running them, and fixed by parking the victim every step. (2) One test encoded a rule the reference does not have (the 25 s limit overriding a pending kill end); it failed, and the right answer was to delete the test, not to change the flow. (3) A screenshot crop looked like a pellet was drawn over the "Length" text; zooming to pixels showed the text was on top all along. The canvas sorting order stayed in as a cheap guard against the 2D renderer's distance sort. (4) The headless compile was blocked by the open editor; the first check was csc against Unity's DLLs and the built-in ugui sources (clean), then the user closed the editor for the real compile and render check.
+
 ## Backlog
+- Tutorial: a real hand sprite instead of the dot (stage 5 if wanted); merge the UI sprites into one atlas to drop a batch.
+- Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
 - Camera smoothing/shake offset hook (stage 5 juice).
 - Web build: disable Physics/Physics2D modules (stage 7).
 - Bots steer round bodies (the reference does not); would make the arena livelier and the 'SO CLOSE' end rarer (stage 5/6 if wanted).
