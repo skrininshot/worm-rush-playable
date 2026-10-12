@@ -31,12 +31,25 @@ namespace WormRush.View
 
         public UiKit()
         {
-            Font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Font = LoadFont();
 
             float half = SpriteSize * 0.5f - 1f;
             Circle = MakeSprite((x, y) => half + 0.5f - Mathf.Sqrt(x * x + y * y), Vector4.zero);
             Pill = MakeSprite((x, y) => 0.5f - (Mathf.Sqrt(x * x + y * y) - PillBorder),
                 new Vector4(PillBorder, PillBorder, PillBorder, PillBorder));
+        }
+
+        static Font LoadFont()
+        {
+            try
+            {
+                return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            }
+            catch (ArgumentException)
+            {
+                // Unity 6 ships LegacyRuntime.ttf; an OS font keeps the editor usable if that ever changes.
+                return Font.CreateDynamicFontFromOSFont("Arial", 16);
+            }
         }
 
         public void Dispose()

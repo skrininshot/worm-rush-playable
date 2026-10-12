@@ -18,6 +18,9 @@ namespace WormRush.View
         const float ReferenceHeight = 844f;
         const float MatchWidthOrHeight = 0.5f;
         const float PlaneDistance = 1f;
+        // The world's instanced layers sort by distance, which depends on the 2D renderer's sort axis and so on where
+        // the camera is; an explicit sorting order keeps the UI above them wherever the player is.
+        const int CanvasSortingOrder = 100;
 
         // Length counter (top centre).
         const int LengthFontSize = 20;
@@ -106,6 +109,7 @@ namespace WormRush.View
             canvas.renderMode = RenderMode.ScreenSpaceCamera;
             canvas.worldCamera = camera;
             canvas.planeDistance = PlaneDistance;
+            canvas.sortingOrder = CanvasSortingOrder;
             Transform root = _root.transform;
 
             Color shadow = new Color(0f, 0f, 0f, 0.7f);
@@ -125,7 +129,7 @@ namespace WormRush.View
             _tutorialGroup = _tutorial.gameObject.AddComponent<CanvasGroup>();
             _tutorialGroup.interactable = false;
             _tutorialGroup.blocksRaycasts = false;
-            Image track = _kit.NewImage("Track", _tutorial, _kit.Pill, new Color(1f, 1f, 1f, TutorialTrackAlpha));
+            Image track = _kit.NewImage("Track", _tutorial, null, new Color(1f, 1f, 1f, TutorialTrackAlpha));
             UiKit.Place(track.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(TutorialTrackHalf * 2f, TutorialTrackThickness));
             Image dot = _kit.NewImage("Dot", _tutorial, _kit.Circle, Color.white);
