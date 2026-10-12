@@ -6,7 +6,9 @@ namespace WormRush.Core
     /// Every simulation tunable. Plain C# so Core stays free of UnityEngine;
     /// the PlayableConfig ScriptableObject (View/Config side) will fill one of these.
     /// Defaults match reference/worm-rush-playable.html.
+    /// [Serializable] (a plain .NET attribute) lets Unity show and save it inside PlayableConfig.
     /// </summary>
+    [Serializable]
     public sealed class SimConfig
     {
         // ---- Arena ----
