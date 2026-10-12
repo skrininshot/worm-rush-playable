@@ -8,20 +8,20 @@ namespace WormRush.Core.Tests
         [Test]
         public void ScriptStaysOffWithoutAFirstTap()
         {
-            WormSim sim = new WormSim(TestWorld.OneBot(), 1);
+            WormSim sim = new WormSim(TestWorld.OneVictim(), 1);
             sim.Player.Speed = 0f;
 
             TestWorld.Run(sim, 6f);
 
             Worm victim = sim.Worms[1];
             Assert.That(victim.VictimScriptActive, Is.False);
-            Assert.That(victim.HasTarget, Is.False);
+            Assert.That(victim.Speed, Is.EqualTo(sim.Config.BotSpeed));
         }
 
         [Test]
         public void ScriptWaitsForTheDelayAfterTheTap()
         {
-            SimConfig config = TestWorld.OneBot();
+            SimConfig config = TestWorld.OneVictim();
             WormSim sim = new WormSim(config, 1);
             sim.Player.Speed = 0f;
             sim.Worms[1].Place(-55f, 100f, MathF.PI / 2f);
@@ -38,7 +38,7 @@ namespace WormRush.Core.Tests
         [Test]
         public void ScriptAimsAtThePlayersBodyAndSpeedsTheVictimUp()
         {
-            SimConfig config = TestWorld.OneBot();
+            SimConfig config = TestWorld.OneVictim();
             WormSim sim = new WormSim(config, 1);
             sim.Player.Speed = 0f;
             sim.Worms[1].Place(-55f, 100f, MathF.PI / 2f);
@@ -48,7 +48,8 @@ namespace WormRush.Core.Tests
 
             Worm victim = sim.Worms[1];
             Assert.That(victim.HasTarget, Is.True);
-            Assert.That(victim.Speed, Is.EqualTo(config.VictimSpeed));
+            Assert.That(victim.Speed, Is.GreaterThanOrEqualTo(config.VictimSpeed));
+            Assert.That(victim.Speed, Is.LessThan(config.VictimSpeed + 1f * config.VictimSpeedRamp));
 
             // Target is one of the player's segments (the body moves at most a few units per step).
             float nearest = float.MaxValue;
@@ -60,7 +61,7 @@ namespace WormRush.Core.Tests
         [Test]
         public void VictimDiesAgainstThePlayersBodyWithinTheWindow()
         {
-            SimConfig config = TestWorld.OneBot();
+            SimConfig config = TestWorld.OneVictim();
             WormSim sim = new WormSim(config, 1);
             Worm victim = sim.Worms[1];
             sim.Player.Speed = 0f;

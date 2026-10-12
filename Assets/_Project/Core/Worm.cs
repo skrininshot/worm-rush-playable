@@ -24,6 +24,7 @@ namespace WormRush.Core
         // Bot steering state (written by BotBrain).
         public Vec2 Target;
         public bool HasTarget;
+        public float ThinkTimer;   // seconds until the bot picks a new food target
         public bool VictimScriptActive;
 
         readonly SimConfig _config;

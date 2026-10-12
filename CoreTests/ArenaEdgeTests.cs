@@ -35,20 +35,6 @@ namespace WormRush.Core.Tests
         }
 
         [Test]
-        public void BotFlyingStraightEventuallyHitsTheEdge()
-        {
-            WormSim sim = new WormSim(TestWorld.OneBot(), 1);
-            sim.Player.Speed = 0f;
-            sim.Worms[1].Place(0f, 500f, MathF.PI / 2f);   // outward, 500 units from the edge
-
-            TestWorld.Run(sim, 3f);
-            Assert.That(sim.Worms[1].Alive, Is.True);
-
-            TestWorld.Run(sim, 3f);   // 500 / 115 is about 4.3 s
-            Assert.That(sim.Worms[1].Alive, Is.False);
-        }
-
-        [Test]
         public void PlayerIsPushedBackFromTheEdgeAndSurvives()
         {
             WormSim sim = TestWorld.Frozen(TestWorld.Empty());

@@ -14,7 +14,7 @@ namespace WormRush.Core.Tests
             return new SimConfig { FoodTarget = 0, BotStartLengths = new int[0] };
         }
 
-        /// <summary>No random food, one bot (length 20, colour 1) which is also the scripted victim.</summary>
+        /// <summary>No random food, one ordinary bot (length 20, colour 1): no script, no protection.</summary>
         public static SimConfig OneBot()
         {
             return new SimConfig
@@ -22,7 +22,16 @@ namespace WormRush.Core.Tests
                 FoodTarget = 0,
                 BotStartLengths = new[] { 20 },
                 BotColorIds = new[] { 1 },
+                VictimBotIndex = -1,
             };
+        }
+
+        /// <summary>Same, but the bot is the scripted victim.</summary>
+        public static SimConfig OneVictim()
+        {
+            SimConfig config = OneBot();
+            config.VictimBotIndex = 0;
+            return config;
         }
 
         public static WormSim Frozen(SimConfig config, int seed = 1)
