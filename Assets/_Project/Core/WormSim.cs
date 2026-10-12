@@ -49,6 +49,12 @@ namespace WormRush.Core
             RefillFood();
         }
 
+        /// <summary>The sim's seeded generator, shared with BotBrain so a seed still fixes the whole run.</summary>
+        internal SimRandom Random
+        {
+            get { return _rng; }
+        }
+
         public Worm Player
         {
             get { return Worms[0]; }
@@ -233,9 +239,9 @@ namespace WormRush.Core
                 float distFromCenter = MathF.Sqrt(head.X * head.X + head.Y * head.Y);
                 if (distFromCenter > arenaRadius - radius)
                 {
-                    if (worm.IsPlayer)
+                    if (worm.IsPlayer || IsShieldedVictim(worm))
                     {
-                        // The player is pushed back from the edge, never killed by it.
+                        // The player (and the guaranteed victim) is pushed back from the edge, never killed by it.
                         float k = (arenaRadius - radius) / distFromCenter;
                         head = new Vec2(head.X * k, head.Y * k);
                         worm.Segments[0] = head;
@@ -260,7 +266,7 @@ namespace WormRush.Core
                     if (otherIndex == w || (killerIndex >= 0 && otherIndex >= killerIndex)) continue;
 
                     Worm other = Worms[otherIndex];
-                    if (!other.Alive) continue;
+                    if (!other.Alive || !CanHit(worm, other)) continue;
 
                     Vec2 seg = other.Segments[_query[q] & SegmentMask];
                     float reach = hitRadius + other.Radius;
@@ -269,6 +275,24 @@ namespace WormRush.Core
 
                 if (killerIndex >= 0) Kill(worm, Worms[killerIndex]);
             }
+        }
+
+        bool IsShieldedVictim(Worm worm)
+        {
+            return Config.VictimGuarantee && worm.IsVictim;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="attacker"/>'s head can die on <paramref name="body"/>. With VictimGuarantee the
+        /// scripted victim is the director's tool: its body never kills the player, and its own head only dies
+        /// on the player's body, and only once the script is active. Everyone else is plain head-versus-body.
+        /// </summary>
+        bool CanHit(Worm attacker, Worm body)
+        {
+            if (!Config.VictimGuarantee) return true;
+            if (body.IsVictim && attacker.IsPlayer) return false;
+            if (attacker.IsVictim) return body.IsPlayer && attacker.VictimScriptActive;
+            return true;
         }
 
         void Kill(Worm victim, Worm killer)

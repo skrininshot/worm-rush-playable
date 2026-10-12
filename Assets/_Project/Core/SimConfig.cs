@@ -56,12 +56,21 @@ namespace WormRush.Core
         public float BotSpawnAngleOffset = 0.6f;
         public float BotSpawnDistanceMin = 420f;
         public float BotSpawnDistanceMax = 820f;
+        public int BotFoodSamples = 12;        // a retarget looks at this many random pellets and takes the nearest
+        public float BotRetargetMin = 0.8f;    // seconds between retargets, drawn per bot each time
+        public float BotRetargetMax = 2f;
+        public float BotEdgeMargin = 120f;     // closer than this to the arena edge a bot heads for the centre
 
         // ---- Scripted victim ----
         public int VictimBotIndex = 0;
         public float VictimSpawnDistance = 280f;
         public float VictimDelaySeconds = 4f;           // after the first tap
         public float VictimTargetBodyFraction = 0.45f;  // aims this far along the player's body
+        public float VictimSpeedRamp = 15f;             // units/s gained per second of chase, so the player cannot outrun it
+        public float VictimMaxSpeed = 220f;
+        public float VictimLoiterDistance = 350f;       // before the script it eats pellets about this far from the player (0 = ordinary seeking)
+        public float VictimKeepOutFraction = 0.6f;      // and steers outward if it gets closer than this fraction of that distance
+        public bool VictimGuarantee = true;             // see WormSim: only the player's body kills it, and only once scripted
 
         public int BotCount
         {
