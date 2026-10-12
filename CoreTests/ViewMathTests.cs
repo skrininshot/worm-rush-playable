@@ -61,5 +61,27 @@ namespace WormRush.Core.Tests
             Assert.That(Steering.TryGetHeading(1f, 1f, 4f, out _), Is.False);
             Assert.That(Steering.TryGetHeading(0f, 0f, 0f, out _), Is.False);
         }
+
+        [Test]
+        public void UiScaleIsOneAtTheReferenceResolution()
+        {
+            Assert.That(ViewMath.UiScale(390f, 844f, 390f, 844f, 0.5f), Is.EqualTo(1f).Within(1e-5f));
+        }
+
+        [Test]
+        public void UiScaleFollowsWidthOrHeightAtTheExtremes()
+        {
+            Assert.That(ViewMath.UiScale(780f, 844f, 390f, 844f, 0f), Is.EqualTo(2f).Within(1e-4f));
+            Assert.That(ViewMath.UiScale(780f, 1688f, 390f, 844f, 1f), Is.EqualTo(2f).Within(1e-4f));
+            Assert.That(ViewMath.UiScale(1000f, 1688f, 390f, 844f, 1f), Is.EqualTo(2f).Within(1e-4f));
+        }
+
+        [Test]
+        public void UiScaleBlendsGeometricallyAndSurvivesBadInput()
+        {
+            // Width ratio 4, height ratio 1: halfway in log space is 2.
+            Assert.That(ViewMath.UiScale(1560f, 844f, 390f, 844f, 0.5f), Is.EqualTo(2f).Within(1e-4f));
+            Assert.That(ViewMath.UiScale(0f, 0f, 390f, 844f, 0.5f), Is.EqualTo(1f));
+        }
     }
 }

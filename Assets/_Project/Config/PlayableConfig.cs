@@ -20,8 +20,35 @@ namespace WormRush.Config
 
         [Header("Run")]
         public int TargetFrameRate = 60;
-        [Tooltip("After the player dies, a tap restarts the run only once this much time has passed.")]
-        public float RestartDelaySeconds = 0.6f;
+
+        [Header("Store links (the Web build picks one by user agent)")]
+        public string StoreUrlIos = "https://apps.apple.com/";
+        public string StoreUrlAndroid = "https://play.google.com/store/apps";
+
+        [Header("Texts")]
+        public string CtaText = "PLAY NOW";
+        public string LengthLabel = "Length: ";
+        public string TutorialText = "DRAG TO MOVE";
+        public string BlockPathText = "Block their path!";
+        public string EndAwesomeTitle = "AWESOME!";
+        public string EndNiceMovesTitle = "NICE MOVES!";
+        public string EndSoCloseTitle = "SO CLOSE!";
+        public string EndWinSubtitle = "Grow into the longest worm in the arena!";
+        public string EndLoseSubtitle = "Come back and take your revenge!";
+        public string EndButtonText = "PLAY NOW";
+
+        [Header("UI colours")]
+        public Color CtaTopColor = new Color32(0xff, 0xd2, 0x3f, 0xff);
+        public Color CtaBottomColor = new Color32(0xff, 0x9f, 0x1c, 0xff);
+        public Color CtaEdgeColor = new Color32(0xb8, 0x6a, 0x00, 0xff);
+        public Color CtaTextColor = new Color32(0x3a, 0x1c, 0x00, 0xff);
+        public Color EndButtonTopColor = new Color32(0x3e, 0xe6, 0xa8, 0xff);
+        public Color EndButtonBottomColor = new Color32(0x18, 0xb4, 0x7f, 0xff);
+        public Color EndButtonEdgeColor = new Color32(0x0b, 0x7a, 0x54, 0xff);
+        public Color EndButtonTextColor = new Color32(0x03, 0x26, 0x1a, 0xff);
+        public Color EndDimColor = new Color32(0x08, 0x0c, 0x1c, 0xc7);
+        public Color EndTitleShadowColor = new Color32(0xff, 0x5d, 0x8f, 0xff);
+        public Color HintColor = new Color32(0xff, 0xd2, 0x3f, 0xff);
 
         [Header("Camera and input")]
         [Tooltip("World units visible across the shorter screen side at worm length 0.")]

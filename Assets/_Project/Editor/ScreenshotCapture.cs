@@ -14,12 +14,16 @@ namespace WormRush.EditorTools
     /// saves a PNG. Needs a GPU, so run WITHOUT -nographics:
     ///   Unity -batchmode -quit -projectPath . -executeMethod WormRush.EditorTools.ScreenshotCapture.Run
     ///         -shotPath out.png -shotWidth 540 -shotHeight 960 -shotSeconds 6 -shotSeed 7
-    ///         [-shotHeading 0.6] [-shotViewSpan 480] -logFile log.txt
+    ///         [-shotHeading 0.6] [-shotViewSpan 480] [-shotState play|tutorial|end] -logFile log.txt
+    /// -shotState: play = tapped, run -shotSeconds, then draw (HUD, "Block their path!" window);
+    ///             tutorial = never tapped (the hand); end = run until the end card shows, then draw it.
     /// </summary>
     public static class ScreenshotCapture
     {
         const string ScenePath = "Assets/Scenes/SampleScene.unity";
         const float StepSeconds = 1f / 60f;
+        const float EndSearchSeconds = 60f;   // -shotState end gives up after this much sim time
+        const float UiSettleSeconds = 0.8f;   // after the end card pop (0.5 s) and mid-pulse
 
         public static void Run()
         {
@@ -29,6 +33,7 @@ namespace WormRush.EditorTools
             float seconds = float.Parse(Arg("-shotSeconds", "6"), System.Globalization.CultureInfo.InvariantCulture);
             int seed = int.Parse(Arg("-shotSeed", "7"));
             float heading = float.Parse(Arg("-shotHeading", "0.6"), System.Globalization.CultureInfo.InvariantCulture);
+            string state = Arg("-shotState", "play");
 
             EditorSceneManager.OpenScene(ScenePath);
             Camera camera = Camera.main;
@@ -42,15 +47,33 @@ namespace WormRush.EditorTools
             if (world == null) throw new InvalidOperationException("WorldView could not be created (shader missing?)");
 
             WormSim sim = new WormSim(config.Sim, seed);
-            sim.StartPlay();
-            sim.SetPlayerHeading(heading);
-            for (float t = 0f; t < seconds; t += StepSeconds) sim.Step(StepSeconds);
+            PlayableFlow flow = new PlayableFlow(sim);
+            if (state != "tutorial")
+            {
+                sim.StartPlay();
+                sim.SetPlayerHeading(heading);
+            }
+
+            float limit = state == "end" ? EndSearchSeconds : seconds;
+            for (float t = 0f; t < limit; t += StepSeconds)
+            {
+                sim.Step(StepSeconds);
+                flow.Update();
+                if (state == "end" && flow.State == FlowState.EndCard) break;
+            }
 
             RenderTexture target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
             camera.targetTexture = target;
             CameraFollow follow = new CameraFollow(camera, config);
             ViewBounds view = follow.Apply(sim.Player);
             world.Draw(sim, view);
+
+            // The UI the same way the runner drives it. Two Present calls: the end card pop starts at the first
+            // and is finished by the second.
+            PlayableUi ui = PlayableUi.Create(config, camera);
+            ui.Present(flow, sim, 0f, width, height);
+            ui.Present(flow, sim, UiSettleSeconds, width, height);
+            Canvas.ForceUpdateCanvases();
             camera.Render();
 
             RenderTexture.active = target;
@@ -61,7 +84,9 @@ namespace WormRush.EditorTools
             camera.targetTexture = null;
 
             File.WriteAllBytes(path, image.EncodeToPNG());
-            Debug.Log("Screenshot saved: " + path + "  (" + width + "x" + height + ", food " + sim.FoodCount + ", player length " + sim.Player.Length + ")");
+            Debug.Log("Screenshot saved: " + path + "  (" + width + "x" + height + ", food " + sim.FoodCount + ", player length " + sim.Player.Length +
+                      ", flow " + flow.State + ", end " + flow.EndKind + "/" + flow.EndReason + ", kills " + flow.Kills + ")");
+            ui.Dispose();
             world.Dispose();
         }
 
