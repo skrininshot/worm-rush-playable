@@ -14,7 +14,7 @@ Short handoff for the next session. Keep each entry under ~15 lines.
 ## Stage 0 — done by the user in Unity Hub
 - [x] Unity 6000.3.18f1, template Universal 2D, project in the repo root
 - [x] Claude scaffold (CLAUDE.md, docs, .claude/ commands and permissions, .gitignore) committed to `main`
-- [ ] Platform switched to Web (File → Build Profiles) — do before stage 7
+- [x] Platform switched to Web (done by the first Web build, see Stage 5 review round 8)
 - Folders under `Assets/_Project` are created by Claude in the stages that need them
 
 ## Entry template
@@ -143,6 +143,13 @@ Feedback: edge elements too close to the screen edge; PLAY NOW on the play scree
 Done (all in `PlayableUi`, UI units of the 390x844 layout): length counter centre 26 -> 74 from the top, "Block their path!" 62 -> 112, restart button 10 -> 22 from the side and 52 from the top (level with the counter). Persistent CTA 1.5x (font 17 -> 26, height 46 -> 69, pad 30 -> 45) and 18 -> 54 off the bottom. End card: title font 44 -> 62, button font 24 -> 34 / height 62 -> 86 / pad 46 -> 62, subtitle 18 -> 20 in a 330 box; the stack was re-spaced (title y 98, subtitle 30, button -62).
 Decisions: the title fits the screen: it shrinks until it clears `EndSideMargin` (32) on each side; if that would be below 55 (1.25x the old 44) and it has a space, it breaks into two lines instead (NICE MOVES! -> NICE / MOVES!, the lower line where the one-line title sat). Fixed offsets, not `Screen.safeArea`: the render check and the Web build have no reliable safe area, and ~50 units is clear of every cut-out in use.
 Known issues / TODO: not seen on a device; if the camera still clips the counter on some phone, raise `LengthTop` and `RestartMarginTop`. Checked in the render check at 468x1013 (play, SO CLOSE, NICE MOVES! with a temporary title), compile clean, no Core change.
+
+### Stage 5, review round 8 — Web build for Cloudflare Pages (same PR)
+Request: build the playable and put it on Cloudflare Pages. This was the first Web build of the project.
+Done: `Editor/WebBuild.cs` (menu **Worm Rush > Build Web**, or `-executeMethod WormRush.EditorTools.WebBuild.Run -buildPath Builds/WebGL`) makes a release build into `Builds/WebGL` (git-ignored), prints every file's size and flags anything over the 25 MiB Pages limit. Page template `Assets/WebGLTemplates/WormRush/index.html`: full screen on a phone, a centred 9:16 column on a desktop, DPR capped at 2, own progress bar. README has the build and deploy commands.
+Found by the first Web build (not visible in the editor): (1) the raw `.wasm` is 46.7 MB, over the 25 MiB per-file limit of Pages. Build uses Brotli + decompression fallback (the loader unpacks `.unityweb` in JS, no `Content-Encoding` needed): wasm 8.2 MB, 12.1 MB in total. (2) The world did not draw at all, only the UI: the build stripped the `INSTANCING_ON` variant of `WormRush/Circle` because only a run-time material used it. `Resources/CircleInstanced.mat` (instancing on, made by the build script) keeps it; the log now shows 2 of 2 variants.
+Decisions: the build script sets compression/template through `PlayerSettings` and puts the old values back, so `ProjectSettings` is unchanged by it. Unity re-serialises URP assets and two ProjectSettings files on every build; those diffs are not committed.
+Known issues / TODO: checked by loading the build in a browser from a static server that sends no `Content-Encoding` (like Pages): loads, draws, UI and a kill popup show. Not checked: touch on a phone, sound in the Web build, `WebAdNetwork`/`.jslib` (store link on a real tap), real FPS. The Unity "Made with Unity" splash shows before the game (Personal licence). The wasm is big for what it does (stage 7: strip Physics/Physics2D and other modules). The active editor platform is now Web (the build switched it).
 
 ## Backlog
 - Stage 6: `ShowRestartButton` as a URL parameter (off by default for real ad networks); decide whether a restart should reset or re-fire `GameEnd`.

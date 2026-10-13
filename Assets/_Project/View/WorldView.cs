@@ -37,6 +37,8 @@ namespace WormRush.View
         WorldView(PlayableConfig config, Shader shader)
         {
             _mesh = CircleBatch.CreateQuad();
+            // A build keeps the shader's INSTANCING_ON variant only if some material asset uses it; this run-time
+            // material does not count, Resources/CircleInstanced.mat does (made by Editor/WebBuild.cs).
             _material = new Material(shader) { name = "WormRush.Circle", enableInstancing = true };
 
             ShaderPalette palette = new ShaderPalette(config);
