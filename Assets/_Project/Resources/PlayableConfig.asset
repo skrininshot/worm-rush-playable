@@ -54,7 +54,7 @@ MonoBehaviour:
   Seed: 0
   TargetFrameRate: 60
   RestartDelaySeconds: 0.6
-  ViewSpan: 480
+  ViewSpan: 340
   ZoomOutPerLength: 0.002
   CameraDepth: -10
   PointerDeadZonePixels: 6

@@ -26,10 +26,13 @@ namespace WormRush.View
         }
 
         readonly JuiceConfig _config;
+        readonly UiJuiceConfig _ui;
         readonly AudioClip[] _eat;
         readonly AudioClip[] _kill;
         readonly AudioClip[] _death;
         readonly AudioClip[] _endCard;
+        readonly AudioClip[] _tap;
+        readonly AudioClip[] _pop;
         readonly List<Object> _owned = new List<Object>();
         readonly List<Pending> _pending = new List<Pending>(4);
         readonly AudioSource[] _voices = new AudioSource[VoiceCount];
@@ -39,6 +42,7 @@ namespace WormRush.View
         public SoundBank(PlayableConfig config, Camera camera)
         {
             _config = config.Juice;
+            _ui = config.UiJuice;
 
             _eat = new AudioClip[_config.ComboMaxSteps + 1];
             for (int step = 1; step < _eat.Length; step++)
@@ -47,6 +51,8 @@ namespace WormRush.View
             _kill = MakeClips("Kill", _config.KillCues);
             _death = MakeClips("Death", _config.DeathCues);
             _endCard = MakeClips("EndCard", _config.EndCardCues);
+            _tap = MakeClips("UiTap", _ui.TapCues);
+            _pop = MakeClips("UiPop", _ui.PopCues);
 
             _root = new GameObject("WormRush Audio");
             for (int i = 0; i < VoiceCount; i++)
@@ -97,6 +103,12 @@ namespace WormRush.View
                     break;
                 case SoundId.EndCard:
                     PlayCues(_endCard, _config.EndCardCues, time);
+                    break;
+                case SoundId.UiTap:
+                    PlayCues(_tap, _ui.TapCues, time);
+                    break;
+                case SoundId.UiPop:
+                    PlayCues(_pop, _ui.PopCues, time);
                     break;
             }
         }

@@ -16,10 +16,10 @@ namespace WormRush.Core.Tests
 
         static IEnumerable<TestCaseData> CarefulPlayers()
         {
-            yield return new TestCaseData("straight", (Func<ClimaxHarness.Pilot>)(() => ClimaxHarness.Careful(ClimaxHarness.Straight())));
-            yield return new TestCaseData("circling", (Func<ClimaxHarness.Pilot>)(() => ClimaxHarness.Careful(ClimaxHarness.Circling(1.5f))));
-            yield return new TestCaseData("nearest food", (Func<ClimaxHarness.Pilot>)(() => ClimaxHarness.Careful(ClimaxHarness.NearestFood())));
-            yield return new TestCaseData("flees the victim", (Func<ClimaxHarness.Pilot>)(() => ClimaxHarness.Careful(ClimaxHarness.FleeVictim())));
+            yield return new TestCaseData("straight", (Func<ClimaxHarness.Pilot>)(() => ClimaxHarness.Human(ClimaxHarness.Straight())));
+            yield return new TestCaseData("circling", (Func<ClimaxHarness.Pilot>)(() => ClimaxHarness.Human(ClimaxHarness.Circling(1.5f))));
+            yield return new TestCaseData("nearest food", (Func<ClimaxHarness.Pilot>)(() => ClimaxHarness.Human(ClimaxHarness.NearestFood())));
+            yield return new TestCaseData("flees the victim", (Func<ClimaxHarness.Pilot>)(() => ClimaxHarness.Human(ClimaxHarness.FleeVictim())));
         }
 
         [TestCaseSource(nameof(CarefulPlayers))]
@@ -81,7 +81,7 @@ namespace WormRush.Core.Tests
         [Test]
         public void TheClimaxNeverComesBeforeTheScriptStarts()
         {
-            foreach (ClimaxHarness.Outcome o in ClimaxHarness.RunMany(Runs, () => ClimaxHarness.Careful(ClimaxHarness.NearestFood())))
+            foreach (ClimaxHarness.Outcome o in ClimaxHarness.RunMany(Runs, () => ClimaxHarness.Human(ClimaxHarness.NearestFood())))
             {
                 if (o.VictimDied)
                     Assert.That(o.DeathTime, Is.GreaterThan(ClimaxHarness.TapSeconds + new SimConfig().VictimDelaySeconds), "seed " + o.Seed);

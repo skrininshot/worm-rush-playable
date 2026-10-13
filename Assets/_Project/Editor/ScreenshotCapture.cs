@@ -14,7 +14,7 @@ namespace WormRush.EditorTools
     /// saves a PNG. Needs a GPU, so run WITHOUT -nographics:
     ///   Unity -batchmode -quit -projectPath . -executeMethod WormRush.EditorTools.ScreenshotCapture.Run
     ///         -shotPath out.png -shotWidth 540 -shotHeight 960 -shotSeconds 6 -shotSeed 7
-    ///         [-shotHeading 0.6] [-shotViewSpan 480] [-shotState play|tutorial|end|kill] [-shotAfter 0.25] -logFile log.txt
+    ///         [-shotHeading 0.6] [-shotViewSpan 480] [-shotState play|tutorial|end|kill] [-shotAfter 0.25] [-shotUiSeconds 1.25] [-shotPressAt 2.0] -logFile log.txt
     /// -shotState: play = tapped, run -shotSeconds, then draw (HUD, "Block their path!" window);
     ///             tutorial = never tapped (the hand); end = run until the end card shows, then draw it;
     ///             kill = run until the player's first kill, then -shotAfter more seconds (burst, "+1 KILL!", shake).
@@ -24,7 +24,7 @@ namespace WormRush.EditorTools
         const string ScenePath = "Assets/Scenes/SampleScene.unity";
         const float StepSeconds = 1f / 60f;
         const float EndSearchSeconds = 60f;   // -shotState end gives up after this much sim time
-        const float UiSettleSeconds = 0.8f;   // after the end card pop (0.5 s) and mid-pulse
+        const float UiSettleSeconds = 1.25f;  // default UI time after the end card appears: title landed, button mid sweep
         const float KillSearchSeconds = 60f;  // -shotState kill gives up after this much sim time
 
         public static void Run()
@@ -37,6 +37,9 @@ namespace WormRush.EditorTools
             float heading = float.Parse(Arg("-shotHeading", "0.6"), System.Globalization.CultureInfo.InvariantCulture);
             string state = Arg("-shotState", "play");
             float after = float.Parse(Arg("-shotAfter", "0.25"), System.Globalization.CultureInfo.InvariantCulture);
+            float uiSeconds = float.Parse(Arg("-shotUiSeconds", UiSettleSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                System.Globalization.CultureInfo.InvariantCulture);
+            float pressAt = float.Parse(Arg("-shotPressAt", "-1"), System.Globalization.CultureInfo.InvariantCulture);
 
             EditorSceneManager.OpenScene(ScenePath);
             Camera camera = Camera.main;
@@ -80,11 +83,20 @@ namespace WormRush.EditorTools
             ViewBounds view = follow.Apply(sim.Player, juice.ShakeX * shakeScale, juice.ShakeY * shakeScale);
             world.Draw(sim, view, juice);
 
-            // The UI the same way the runner drives it. Two Present calls: the end card pop starts at the first
-            // and is finished by the second.
+            // The UI the same way the runner drives it: its animations are stepped in real frames for -shotUiSeconds
+            // (the end card starts at the first Present), so springs, confetti and the sweep are where they would be.
             PlayableUi ui = PlayableUi.Create(config, camera);
             ui.Present(flow, sim, 0f, width, height);
-            ui.Present(flow, sim, UiSettleSeconds, width, height);
+            bool pressed = false;
+            for (float t = StepSeconds; t <= uiSeconds + 1e-4f; t += StepSeconds)
+            {
+                if (!pressed && pressAt >= 0f && t >= pressAt)
+                {
+                    pressed = true;
+                    ui.Press(new Vector2(width * 0.5f, height * 0.4f), width, height);
+                }
+                ui.Present(flow, sim, t, width, height);
+            }
             ui.PresentPopups(juice, width, height);
             Canvas.ForceUpdateCanvases();
             camera.Render();

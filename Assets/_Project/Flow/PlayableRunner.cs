@@ -8,9 +8,9 @@ namespace WormRush.Flow
 {
     /// <summary>
     /// The playable's driver: owns the sim, the PlayableFlow beat sheet, the world and UI views and the ad network.
-    /// Each frame: input, sim step, flow update, juice (shake, particles, popups, sounds), draw. What a tap means depends on where it lands and on the flow:
-    /// the CTA button or anywhere on the end card goes to the store, everywhere else it steers (and the very
-    /// first one starts the run).
+    /// Each frame: input, sim step, flow update, juice (shake, particles, popups, sounds), draw, UI (its own juice and sounds). What a tap means depends on where it lands and on the flow:
+    /// the restart button starts a new run, the CTA button or anywhere on the end card goes to the store,
+    /// everywhere else it steers (and the very first one starts the run).
     /// </summary>
     public sealed class PlayableRunner : MonoBehaviour
     {
@@ -90,24 +90,39 @@ namespace WormRush.Flow
         {
             _input.Update();
 
+            // The restart button wins over everything under it, the end card's "tap anywhere" included.
+            bool restart = _input.PressedThisFrame && _ui.IsOverRestart(_input.Position);
+            if (restart) _ui.PressRestart();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // Not part of the ad: a quick way to run the beat sheet again while testing.
+            if (_input.RestartKeyPressed) restart = true;
+#endif
+            if (restart) NewRun();
+
             bool ended = _flow.State == FlowState.EndCard;
             bool overCta = !ended && _ui.IsOverCta(_input.Position);
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // Not part of the ad: a quick way to run the beat sheet again while testing.
-            if (_input.RestartKeyPressed) NewRun();
-            ended = _flow.State == FlowState.EndCard;
-#endif
-
-            if (_input.PressedThisFrame && (ended || overCta)) OpenStore();
+            _ui.SetPointer(_input.Position, _input.IsMouse);
+            if (restart)
+            {
+                // This press was the button's; it neither steers nor opens the store.
+            }
+            else if (_input.PressedThisFrame && (ended || overCta))
+            {
+                _ui.Press(_input.Position, Screen.width, Screen.height);
+                OpenStore();
+            }
             else if (!ended && !overCta) HandleSteering();
+
+            // Under the end card nobody steers: the worm carries on as an ordinary bot.
+            _sim.Autopilot = _flow.State == FlowState.EndCard;
 
             float step = Mathf.Min(Time.deltaTime, _config.Sim.MaxStepSeconds);
             _sim.Step(step);
             _flow.Update();
             _juice.Update(_sim, _flow, step);
             for (int i = 0; i < _juice.Sounds.Count; i++) _sound.Play(_juice.Sounds[i], Time.time);
-            _sound.Update(Time.time);
+            _ui.React(_juice.Sounds);
 
             if (_flow.State == FlowState.EndCard && !_endReported)
             {
@@ -121,6 +136,11 @@ namespace WormRush.Flow
             _world.Draw(_sim, view, _juice);
             _ui.Present(_flow, _sim, Time.time, Screen.width, Screen.height);
             _ui.PresentPopups(_juice, Screen.width, Screen.height);
+
+            // The UI's own sounds (a tap, the end button springing in) come out of Present.
+            for (int i = 0; i < _ui.Sounds.Count; i++) _sound.Play(_ui.Sounds[i], Time.time);
+            _ui.Sounds.Clear();
+            _sound.Update(Time.time);
         }
 
         void HandleSteering()

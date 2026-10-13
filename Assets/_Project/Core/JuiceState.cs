@@ -9,6 +9,12 @@ namespace WormRush.Core
         Kill,
         Death,
         EndCard,
+
+        /// <summary>A press on a button: the rising three-note tap.</summary>
+        UiTap,
+
+        /// <summary>The end card button springing in.</summary>
+        UiPop,
     }
 
     public readonly struct SoundRequest

@@ -13,6 +13,7 @@ namespace WormRush.Core
     {
         // ---- Arena ----
         public float ArenaRadius = 1000f;
+        public bool PlayerEdgeDeath = true;    // the player's head touching the edge kills it (the reference only pushes it back); idle before the first tap
 
         // ---- Worm movement ----
         public float SegmentSpacing = 5f;

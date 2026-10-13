@@ -19,6 +19,12 @@ namespace WormRush.View
         /// <summary>Screen pixels, origin bottom-left (same orientation as the world).</summary>
         public Vector2 Position { get; private set; }
 
+        /// <summary>True for a mouse; a touch screen has no hover, so nothing should react to where a finger last was.</summary>
+        public bool IsMouse
+        {
+            get { return Pointer.current is Mouse; }
+        }
+
         public bool RestartKeyPressed
         {
             get
