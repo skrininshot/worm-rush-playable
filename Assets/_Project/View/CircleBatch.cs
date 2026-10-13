@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 namespace WormRush.View
 {
     /// <summary>
-    /// A layer of flat circles drawn with Graphics.RenderMeshInstanced: no GameObject per circle,
+    /// A layer of flat circles drawn with instanced mesh draws (Graphics.DrawMeshInstanced): no GameObject per circle,
     /// one draw call per 1023 circles. Circles are drawn in the order they were added.
     /// Usage per frame: Add(...) many times, then Flush().
     /// </summary>
@@ -26,24 +26,15 @@ namespace WormRush.View
         readonly Mesh _mesh;
         readonly Material _material;
         readonly MaterialPropertyBlock _properties = new MaterialPropertyBlock();
-        readonly RenderParams _renderParams;
         readonly float _depth;
         int _current;
 
         /// <param name="depth">World Z of this layer; larger Z is farther from the camera and drawn first.</param>
-        /// <param name="bounds">World bounds of everything the batch can draw (instancing culls against it).</param>
-        public CircleBatch(Mesh mesh, Material material, float depth, Bounds bounds)
+        public CircleBatch(Mesh mesh, Material material, float depth)
         {
             _mesh = mesh;
             _material = material;
             _depth = depth;
-            _renderParams = new RenderParams(material)
-            {
-                worldBounds = bounds,
-                matProps = _properties,
-                shadowCastingMode = ShadowCastingMode.Off,
-                receiveShadows = false,
-            };
             _chunks.Add(new Chunk());
         }
 
@@ -83,7 +74,8 @@ namespace WormRush.View
                 if (chunk.Count > 0)
                 {
                     _properties.SetVectorArray(ColorProperty, chunk.Colors);
-                    Graphics.RenderMeshInstanced(_renderParams, _mesh, 0, chunk.Matrices, chunk.Count);
+                    Graphics.DrawMeshInstanced(_mesh, 0, _material, chunk.Matrices, chunk.Count, _properties,
+                        ShadowCastingMode.Off, false);
                 }
                 chunk.Count = 0;
             }
