@@ -342,6 +342,12 @@ namespace WormRush.View
             outline.effectDistance = new Vector2(distance, -distance);
         }
 
+        /// <summary>A clean rim of <paramref name="radius"/> round the label with a short <paramref name="drop"/> under it.</summary>
+        public static void AddRim(Text text, Color color, float radius, float drop)
+        {
+            text.gameObject.AddComponent<TextRim>().Set(color, radius, drop);
+        }
+
         public static void AddShadow(Text text, Color color, Vector2 offset)
         {
             Shadow shadow = text.gameObject.AddComponent<Shadow>();
@@ -406,6 +412,65 @@ namespace WormRush.View
                 Width = width,
                 Height = height,
             };
+        }
+    }
+
+    /// <summary>
+    /// A solid rim round text with a short drop under it: the glyphs repeated on a ring (and on the same ring
+    /// moved down by <c>drop</c>) in one colour. Unity's Outline uses four diagonal copies, which leaves combs and
+    /// notches at the corners once a drop is stacked on it; a ring of twelve stays a clean, even edge.
+    /// </summary>
+    public sealed class TextRim : BaseMeshEffect
+    {
+        const int Directions = 12;
+
+        readonly List<UIVertex> _source = new List<UIVertex>();
+        readonly List<UIVertex> _result = new List<UIVertex>();
+        Color32 _color = Color.black;
+        float _radius;
+        float _drop;
+
+        public void Set(Color color, float radius, float drop)
+        {
+            _color = color;
+            _radius = radius;
+            _drop = drop;
+            if (graphic != null) graphic.SetVerticesDirty();
+        }
+
+        public override void ModifyMesh(VertexHelper vh)
+        {
+            if (!IsActive() || vh.currentVertCount == 0) return;
+
+            _source.Clear();
+            _result.Clear();
+            vh.GetUIVertexStream(_source);
+
+            // Far copies first, the glyphs themselves last, so the letters sit on top.
+            if (_drop > 0f) AddRing(new Vector2(0f, -_drop));
+            AddRing(Vector2.zero);
+            _result.AddRange(_source);
+
+            vh.Clear();
+            vh.AddUIVertexTriangleStream(_result);
+        }
+
+        void AddRing(Vector2 centre)
+        {
+            for (int i = 0; i < Directions; i++)
+            {
+                float angle = Mathf.PI * 2f * i / Directions;
+                Vector3 shift = new Vector3(centre.x + Mathf.Cos(angle) * _radius, centre.y + Mathf.Sin(angle) * _radius, 0f);
+                for (int v = 0; v < _source.Count; v++)
+                {
+                    UIVertex vertex = _source[v];
+                    vertex.position += shift;
+                    Color32 color = _color;
+                    color.a = (byte)(_color.a * vertex.color.a / 255);
+                    vertex.color = color;
+                    _result.Add(vertex);
+                }
+            }
         }
     }
 

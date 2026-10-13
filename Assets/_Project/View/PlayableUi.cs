@@ -84,11 +84,11 @@ namespace WormRush.View
         const float ShineTravelPad = 0.2f;     // of the button width
 
         const float OutlineDistance = 2.5f;
-        // Button labels: white with a dark outline and a drop, so they pop off the gradient.
-        const float ButtonTextOutline = 2f;
-        const float EndButtonTextOutline = 3f;
-        const float ButtonTextDrop = 1.5f;
-        const float EndButtonTextDrop = 2f;
+        // Button labels: white with a dark rim and a short drop, so they pop off the gradient (see UiKit.AddRim).
+        const float ButtonTextOutline = 1.5f;
+        const float EndButtonTextOutline = 2f;
+        const float ButtonTextDrop = 1f;
+        const float EndButtonTextDrop = 1.5f;
 
         // World popups ("+1 KILL!", "+3"): the Text is rasterised at this size and scaled to match the world, so a
         // zooming camera never makes the font atlas regenerate. The outline follows the reference (5 px on 26).
@@ -237,9 +237,7 @@ namespace WormRush.View
                 config.CtaTopColor, config.CtaBottomColor, config.CtaEdgeColor, config.CtaTextColor, CtaLip,
                 config.CtaTopColor, shine);
             UiKit.Place(_cta.Root, new Vector2(0.5f, 0f), new Vector2(0f, CtaBottom + CtaHeight * 0.5f), _cta.Root.sizeDelta);
-            // The drop goes first so the outline wraps it too: one solid, extruded edge under the letters.
-            UiKit.AddShadow(_cta.Label, config.CtaTextOutlineColor, new Vector2(0f, -ButtonTextDrop));
-            UiKit.AddOutline(_cta.Label, config.CtaTextOutlineColor, ButtonTextOutline);
+            UiKit.AddRim(_cta.Label, config.CtaTextOutlineColor, ButtonTextOutline, ButtonTextDrop);
 
             // End card.
             _endCard = UiKit.NewRect("EndCard", root);
@@ -274,8 +272,7 @@ namespace WormRush.View
                 EndButtonPadX, EndButtonHeight, config.EndButtonTopColor, config.EndButtonBottomColor,
                 config.EndButtonEdgeColor, config.EndButtonTextColor, EndButtonLip, config.EndButtonTopColor, shine);
             UiKit.Place(_endButton.Root, new Vector2(0.5f, 0.5f), new Vector2(0f, EndButtonY), _endButton.Root.sizeDelta);
-            UiKit.AddShadow(_endButton.Label, config.EndButtonTextOutlineColor, new Vector2(0f, -EndButtonTextDrop));
-            UiKit.AddOutline(_endButton.Label, config.EndButtonTextOutlineColor, EndButtonTextOutline);
+            UiKit.AddRim(_endButton.Label, config.EndButtonTextOutlineColor, EndButtonTextOutline, EndButtonTextDrop);
 
             _flash = _kit.NewImage("Flash", _endCard, _kit.Square, new Color(1f, 1f, 1f, 0f));
             UiKit.Stretch(_flash.rectTransform);

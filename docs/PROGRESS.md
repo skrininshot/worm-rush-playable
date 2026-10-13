@@ -111,6 +111,12 @@ Done: both PLAY NOW buttons are a lime gradient with a white label, a dark-green
 Decisions: colours are `PlayableConfig` fields (new `CtaTextOutlineColor`, `EndButtonTextOutlineColor`); the persisted asset never stored the button colours, so the C# defaults apply with no re-save. The end-card button uses the same lime as the CTA so "PLAY NOW" is one identity; flip `EndButton*` fields to separate them. Tutorial time is the UI clock since the hint appeared, not sim time.
 Known issues / TODO: finger speed and loop length are guesses (`TutorialDragSeconds`, `TutorialRestSeconds`); the hand looks like a cartoon cursor, not a photo of a hand, on purpose. Checked in the render check at 540x960 on a project copy (editor was open): compile clean, stills of three moments of the loop, play and end card.
 
+### Stage 5, review round 3 — PLAY NOW label rim (same PR)
+Feedback: the shadow under the PLAY NOW text was far too wide and its edge was ragged.
+Done: Unity's `Shadow` + `Outline` pair is gone from both PLAY NOW labels. Outline copies the glyphs on four diagonals and the shadow was copied again by it, so the drop turned into a wide comb. New `TextRim` (in `UiKit.cs`, via `UiKit.AddRim`) draws the glyphs on a ring of 12 points, and once more on the same ring moved down by the drop: an even edge with a short extruded lip. Smaller numbers: CTA rim 1.5 + drop 1 (was 2 + 1.5), end button rim 2 + drop 1.5 (was 3 + 2).
+Decisions: the other labels (hint, tutorial, popups, end-card title letters) still use `Outline`/`Shadow`; the title letters' stacked shadows look a little rough too, left alone until asked.
+Known issues / TODO: checked in the render check at 1080x1920 (play and end card), compile clean.
+
 ## Backlog
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
 - Camera smoothing (the rigid follow is the reference's; shake itself is done).
