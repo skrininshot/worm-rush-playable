@@ -123,6 +123,25 @@ namespace WormRush.Core.Tests
             };
         }
 
+        /// <summary>What any human does since the edge kills: turn back toward the centre well before touching it.</summary>
+        public static Pilot EdgeAware(Pilot inner, float margin = 220f)
+        {
+            return sim =>
+            {
+                Vec2 head = sim.Player.Head;
+                float limit = sim.Config.ArenaRadius - margin;
+                if (head.X * head.X + head.Y * head.Y > limit * limit)
+                    return MathF.Atan2(-head.Y, -head.X);
+                return inner(sim);
+            };
+        }
+
+        /// <summary>A stand-in for a person: avoids the edge and other worms' bodies.</summary>
+        public static Pilot Human(Pilot inner)
+        {
+            return Careful(EdgeAware(inner));
+        }
+
         public static Outcome Run(int seed, Pilot pilot, float tapSeconds = TapSeconds, SimConfig config = null)
         {
             WormSim sim = new WormSim(config ?? new SimConfig(), seed);

@@ -107,6 +107,9 @@ namespace WormRush.Flow
             }
             else if (!ended && !overCta) HandleSteering();
 
+            // Under the end card nobody steers: the worm carries on as an ordinary bot.
+            _sim.Autopilot = _flow.State == FlowState.EndCard;
+
             float step = Mathf.Min(Time.deltaTime, _config.Sim.MaxStepSeconds);
             _sim.Step(step);
             _flow.Update();

@@ -7,7 +7,7 @@ Short handoff for the next session. Keep each entry under ~15 lines.
 - Stage **2 — View + controls**: merged (PR #2).
 - Stage **3 — Bots + collisions**: merged (PR #3).
 - Stage **4 — Flow + end card**: merged (PR #4).
-- Stage **5 — Juice**: merged (PR #5). Review round 1, the "ultra-dopamine" buttons and end card, is a follow-up PR (`stage-5-ui-juice`), waiting for the user's review/merge. `dotnet test CoreTests` green (135/135), Unity compile clean (project copy, editor was open), render check of the kill moment, the tutorial finger and the end card. Review round 2 (PLAY NOW colours, finger hint) is on the same branch. Next: stage 6, only when the user says `/stage 6`.
+- Stage **5 — Juice**: merged (PR #5). Review round 1, the "ultra-dopamine" buttons and end card, is a follow-up PR (`stage-5-ui-juice`), waiting for the user's review/merge. `dotnet test CoreTests` green (143/143), Unity compile clean (headless, exit 0), render check of the kill moment, the tutorial finger and the end card. Review rounds 2-5 (PLAY NOW colours, finger hint, label rim, closer camera, end-card autopilot + edge death) are on the same branch. Next: stage 6, only when the user says `/stage 6`.
 - Repo contains: CLAUDE.md, docs/SPEC.md, reference HTML prototype, `Assets/_Project/{Core,Config,View,Flow,Editor,Resources}`, `CoreTests/`.
 - Press Play in `SampleScene` (or any scene with a camera): `Flow/Bootstrap` creates everything from code.
 
@@ -121,6 +121,16 @@ Known issues / TODO: checked in the render check at 1080x1920 (play and end card
 Feedback: the worm looks too small against the arena; also the "CTA pulse" check item from PR #5 was unclear (it meant the PLAY NOW button's breathing, not anything on the worm; the item was stale once `CtaPulseAmount` was replaced by `UiJuice.Heartbeat*`).
 Done: `PlayableConfig.ViewSpan` 480 -> 340 (default in code and in `Resources/PlayableConfig.asset`, which stores the value): the shorter screen side now shows 340 world units at length 0, so everything is about 1.4x bigger. The reference used 480; this is a deliberate deviation. Checked on 540x960 renders.
 Known issues / TODO: `ZoomOutPerLength` (0.002) is untouched, so a long worm still zooms the view out; lower it if the worm should stay big as it grows.
+
+### Stage 5, review round 5 — autopilot under the end card, edge kills the player (same PR)
+Feedback: under the PLAY NOW screen (input blocked) the worm just flew on in its last direction; it should behave like an ordinary bot. And the player should die on touching the arena edge.
+Done: `WormSim.Autopilot`: while true the player's worm is steered by `BotBrain.Think` (nearest of 12 pellets, retarget every 0.8-2 s, centre when inside the edge margin) and `SetPlayerHeading` is ignored. `PlayableRunner` switches it on whenever the flow is in `EndCard`. `SimConfig.PlayerEdgeDeath` (default true): after the first tap the player's head touching the edge kills it (`Killed` + `PlayerDied`, killer -1, remains drop as usual) and the flow ends with SO CLOSE after the usual 1.1 s. 8 new tests (143 total).
+Decisions:
+- Deliberate deviation from the reference, which only pushes the player back. `PlayerEdgeDeath = false` gives the reference. Before the first tap the player is still pushed back (it only circles at the centre anyway).
+- The scripted victim keeps its shield: it is pushed back from the edge, never killed by it, so the climax guarantee stays intact.
+- The autopilot is a plain bot, so under the end card it can still die (edge clip, another worm's body); then the camera stays on the remains, the arena goes on.
+- `ClimaxTests` stand-ins now avoid the edge like a human would (`ClimaxHarness.Human` = edge-aware + body-aware); without that every "straight" run died on the wall at ~7 s. Acceptance numbers are unchanged (all four pilots stay >= 90%).
+Known issues / TODO: not seen with eyes (no render check: the change is sim-side, the end-card stills are unaffected). A player who steers toward the edge now ends the ad with SO CLOSE; if that is too harsh, ideas for later: a warning vignette near the border, or a short grace period.
 
 ## Backlog
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.

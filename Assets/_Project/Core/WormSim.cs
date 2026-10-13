@@ -27,6 +27,12 @@ namespace WormRush.Core
         public float StartTime { get; private set; }
         public int PlayerKills { get; private set; }
 
+        /// <summary>
+        /// While true the player's worm is steered by BotBrain like any other bot and SetPlayerHeading is ignored.
+        /// The Flow turns it on under the end card, where the human no longer steers.
+        /// </summary>
+        public bool Autopilot;
+
         /// <summary>Valid entries: [0, FoodCount). The array object is replaced when it grows, so re-read it each frame.</summary>
         public Food[] FoodItems { get; private set; }
         public int FoodCount { get; private set; }
@@ -71,7 +77,7 @@ namespace WormRush.Core
         /// <summary>Direction the player's worm should turn toward, in radians. Ignored until StartPlay.</summary>
         public void SetPlayerHeading(float angle)
         {
-            if (Started && Player.Alive) Player.WantAngle = angle;
+            if (Started && Player.Alive && !Autopilot) Player.WantAngle = angle;
         }
 
         public void Step(float dt)
@@ -84,6 +90,7 @@ namespace WormRush.Core
             if (!Started && Player.Alive)
                 Player.WantAngle += Config.IdleTurnRate * dt;
 
+            if (Autopilot && Player.Alive) BotBrain.Think(this, Player, dt);
             for (int i = 1; i < Worms.Count; i++)
             {
                 if (Worms[i].Alive) BotBrain.Think(this, Worms[i], dt);
@@ -239,9 +246,11 @@ namespace WormRush.Core
                 float distFromCenter = MathF.Sqrt(head.X * head.X + head.Y * head.Y);
                 if (distFromCenter > arenaRadius - radius)
                 {
-                    if (worm.IsPlayer || IsShieldedVictim(worm))
+                    bool playerSurvives = worm.IsPlayer && !(Config.PlayerEdgeDeath && Started);
+                    if (playerSurvives || IsShieldedVictim(worm))
                     {
-                        // The player (and the guaranteed victim) is pushed back from the edge, never killed by it.
+                        // The guaranteed victim, and the player before the first tap (or with PlayerEdgeDeath off),
+                        // are pushed back from the edge, never killed by it.
                         float k = (arenaRadius - radius) / distFromCenter;
                         head = new Vec2(head.X * k, head.Y * k);
                         worm.Segments[0] = head;
