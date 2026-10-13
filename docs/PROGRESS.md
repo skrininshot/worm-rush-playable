@@ -7,7 +7,7 @@ Short handoff for the next session. Keep each entry under ~15 lines.
 - Stage **2 — View + controls**: merged (PR #2).
 - Stage **3 — Bots + collisions**: merged (PR #3).
 - Stage **4 — Flow + end card**: merged (PR #4).
-- Stage **5 — Juice**: merged (PR #5). Review round 1, the "ultra-dopamine" buttons and end card, is a follow-up PR (`stage-5-ui-juice`), waiting for the user's review/merge. `dotnet test CoreTests` green (126/126), Unity compile headless exit 0, render check of the kill moment and the end card. Next: stage 6, only when the user says `/stage 6`.
+- Stage **5 — Juice**: merged (PR #5). Review round 1, the "ultra-dopamine" buttons and end card, is a follow-up PR (`stage-5-ui-juice`), waiting for the user's review/merge. `dotnet test CoreTests` green (135/135), Unity compile clean (project copy, editor was open), render check of the kill moment, the tutorial finger and the end card. Review round 2 (PLAY NOW colours, finger hint) is on the same branch. Next: stage 6, only when the user says `/stage 6`.
 - Repo contains: CLAUDE.md, docs/SPEC.md, reference HTML prototype, `Assets/_Project/{Core,Config,View,Flow,Editor,Resources}`, `CoreTests/`.
 - Press Play in `SampleScene` (or any scene with a camera): `Flow/Bootstrap` creates everything from code.
 
@@ -105,8 +105,13 @@ Known issues / TODO:
 - Not felt or heard: the spring stiffness, the sweep timing and the three tap/pop blips are guesses; all are `UiJuiceConfig` numbers. If it is too much on a phone, lower `TapConfetti`, `EndSparklesPerSecond` and `FxCapacity` first.
 - Editor was open, so the headless compile ran with Unity's bundled csc (0 errors) and the render check on a copy of the project.
 
+### Stage 5, review round 2 — PLAY NOW colours, tutorial finger (same PR)
+Feedback: yellow button with black text felt dull; the "DRAG TO MOVE" dot on a slider was not obvious.
+Done: both PLAY NOW buttons are a lime gradient with a white label, a dark-green outline and an extruded drop, plus a lighter top half (gloss, clipped to the pill by the existing mask); the halo is green too. The slider is gone: a pointing hand lands, presses (ripple under the fingertip, soft light), drags once round a circle with a fading dot trail, lifts with a little pop and repeats; "DRAG TO MOVE" stays above the circle. The loop is `TutorialGesture` in Core (a pure function of time, 9 tests, 135 total, numbers in `UiJuiceConfig.Tutorial*`); the hand is painted into the UI atlas from signed distances (layers back to front, each with its own outline), so there is still no image asset.
+Decisions: colours are `PlayableConfig` fields (new `CtaTextOutlineColor`, `EndButtonTextOutlineColor`); the persisted asset never stored the button colours, so the C# defaults apply with no re-save. The end-card button uses the same lime as the CTA so "PLAY NOW" is one identity; flip `EndButton*` fields to separate them. Tutorial time is the UI clock since the hint appeared, not sim time.
+Known issues / TODO: finger speed and loop length are guesses (`TutorialDragSeconds`, `TutorialRestSeconds`); the hand looks like a cartoon cursor, not a photo of a hand, on purpose. Checked in the render check at 540x960 on a project copy (editor was open): compile clean, stills of three moments of the loop, play and end card.
+
 ## Backlog
-- Tutorial: a real hand sprite instead of the dot; merge the UI sprites into one atlas to drop a batch.
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
 - Camera smoothing (the rigid follow is the reference's; shake itself is done).
 - Web build: disable Physics/Physics2D modules (stage 7).
