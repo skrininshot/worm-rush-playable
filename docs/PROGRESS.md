@@ -117,6 +117,11 @@ Done: Unity's `Shadow` + `Outline` pair is gone from both PLAY NOW labels. Outli
 Decisions: the other labels (hint, tutorial, popups, end-card title letters) still use `Outline`/`Shadow`; the title letters' stacked shadows look a little rough too, left alone until asked.
 Known issues / TODO: checked in the render check at 1080x1920 (play and end card), compile clean.
 
+### Stage 5, review round 4 — closer camera (same PR)
+Feedback: the worm looks too small against the arena; also the "CTA pulse" check item from PR #5 was unclear (it meant the PLAY NOW button's breathing, not anything on the worm; the item was stale once `CtaPulseAmount` was replaced by `UiJuice.Heartbeat*`).
+Done: `PlayableConfig.ViewSpan` 480 -> 340 (default in code and in `Resources/PlayableConfig.asset`, which stores the value): the shorter screen side now shows 340 world units at length 0, so everything is about 1.4x bigger. The reference used 480; this is a deliberate deviation. Checked on 540x960 renders.
+Known issues / TODO: `ZoomOutPerLength` (0.002) is untouched, so a long worm still zooms the view out; lower it if the worm should stay big as it grows.
+
 ## Backlog
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
 - Camera smoothing (the rigid follow is the reference's; shake itself is done).

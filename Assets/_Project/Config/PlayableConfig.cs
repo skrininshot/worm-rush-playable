@@ -66,7 +66,7 @@ namespace WormRush.Config
 
         [Header("Camera and input")]
         [Tooltip("World units visible across the shorter screen side at worm length 0.")]
-        public float ViewSpan = 480f;
+        public float ViewSpan = 340f;
         [Tooltip("The view widens by this fraction per unit of player length.")]
         public float ZoomOutPerLength = 0.002f;
         public float CameraDepth = -10f;
