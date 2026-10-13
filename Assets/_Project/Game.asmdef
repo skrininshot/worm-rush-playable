@@ -3,7 +3,6 @@
     "rootNamespace": "WormRush",
     "references": [
         "WormRush.Core",
-        "Unity.InputSystem",
         "UnityEngine.UI"
     ],
     "includePlatforms": [],
