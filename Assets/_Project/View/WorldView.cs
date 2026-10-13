@@ -42,15 +42,13 @@ namespace WormRush.View
             _material = new Material(shader) { name = "WormRush.Circle", enableInstancing = true };
 
             ShaderPalette palette = new ShaderPalette(config);
-            float extent = config.Sim.ArenaRadius * 2f;
-            Bounds bounds = new Bounds(Vector3.zero, new Vector3(extent, extent, config.LayerDepthStep * 4f));
 
             // Larger Z is farther from the camera, so it is drawn first.
             float step = config.LayerDepthStep;
-            _arenaBatch = new CircleBatch(_mesh, _material, step * 2f, bounds);
-            _foodBatch = new CircleBatch(_mesh, _material, step, bounds);
-            _wormBatch = new CircleBatch(_mesh, _material, 0f, bounds);
-            _fxBatch = new CircleBatch(_mesh, _material, -step, bounds);
+            _arenaBatch = new CircleBatch(_mesh, _material, step * 2f);
+            _foodBatch = new CircleBatch(_mesh, _material, step);
+            _wormBatch = new CircleBatch(_mesh, _material, 0f);
+            _fxBatch = new CircleBatch(_mesh, _material, -step);
 
             _arena = new ArenaRenderer(config, palette, _arenaBatch);
             _food = new FoodRenderer(config, palette, _foodBatch);

@@ -48,7 +48,7 @@ Assets/_Project/
   Flow/
     PlayableFlow.cs      — стейт-машина: Intro → Tutorial → Play → Climax → EndCard
   View/
-    WormRenderer.cs      — сегменты через Graphics.RenderMeshInstanced
+    WormRenderer.cs      — сегменты через Graphics.DrawMeshInstanced (RenderMeshInstanced<T> падает в Web-билде с IL2CPP Size)
     FoodRenderer.cs      — то же, один материал
     CameraFollow.cs, Juice.cs (shake, popups, particles из пула)
     HUD.cs, EndCard.cs

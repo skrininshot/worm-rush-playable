@@ -1,0 +1,6 @@
+{
+  // Cloudflare Workers static assets: `npx wrangler deploy` uploads the Unity Web build (see README).
+  "name": "worm-rush-playable",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./Builds/WebGL" }
+}

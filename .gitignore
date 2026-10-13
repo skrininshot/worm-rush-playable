@@ -111,3 +111,6 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Cloudflare wrangler local state
+.wrangler/

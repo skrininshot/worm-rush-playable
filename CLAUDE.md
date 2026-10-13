@@ -27,7 +27,7 @@ Entry points: `/stage N` starts a stage, `/finish` closes it. Steps they run:
 ## Hard rules
 - `Assets/_Project/Core` has **no** `using UnityEngine`. Plain C#, deterministic, unit-tested. Unity code lives in View/Flow/Ad only.
 - No Physics/Physics2D. Collisions via own spatial hash.
-- No GameObject per worm segment or food item — draw with `Graphics.RenderMeshInstanced`.
+- No GameObject per worm segment or food item — draw with instanced mesh draws: `Graphics.DrawMeshInstanced` (`RenderMeshInstanced<T>` throws in the IL2CPP size-optimised Web build).
 - No magic numbers in code: tunables go to `PlayableConfig` (ScriptableObject).
 - No external network requests, no third-party packages without asking.
 - Do not edit `ProjectSettings/`, `Packages/manifest.json` or scenes by hand-written YAML — tell the user what to change in the editor instead.
