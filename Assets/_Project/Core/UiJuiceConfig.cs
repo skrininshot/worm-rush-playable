@@ -46,6 +46,21 @@ namespace WormRush.Core
         public float HintPulseAmount = 0.05f;
         public float HintPulseSpeed = 7f;          // rad/s
 
+        // ---- Tutorial finger: lands, drags once round a circle, lifts, rests, repeats ----
+        public float TutorialRadius = 58f;
+        public float TutorialStartDegrees = 180f;  // where the circle starts (0 = right, 90 = up); it runs clockwise
+        public float TutorialLandSeconds = 0.35f;  // the finger comes down: fades in, shrinks onto the glass
+        public float TutorialHoldSeconds = 0.2f;   // pressed, not moving yet
+        public float TutorialDragSeconds = 1.7f;   // one full circle, eased at both ends
+        public float TutorialLiftSeconds = 0.3f;   // lets go: pops back up, the trail fades
+        public float TutorialRestSeconds = 0.55f;  // gone before the next round
+        public float TutorialPressScale = 0.88f;   // the hand while pressed (1 = off the glass)
+        public float TutorialLandScale = 1.18f;    // the hand as it arrives from above
+        public float TutorialRingSeconds = 0.55f;  // ripple under the fingertip on landing
+        public float TutorialRingSize = 70f;
+        public int TutorialTrailDots = 9;
+        public float TutorialTrailSpacingSeconds = 0.045f;
+
         // ---- End card timeline (seconds after the card appears) ----
         public float DimSeconds = 0.25f;
         public float FlashAlpha = 0.65f;           // white flash on the first frame, fading out
