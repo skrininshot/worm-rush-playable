@@ -17,11 +17,14 @@ Built in **2 days with Claude Code**. Claude wrote and tested the code stage by 
 | | MB (compressed, as served) |
 |---|---|
 | First Web build | 12.1 |
-| **Now** | **7.0** (wasm 5.2 + data 1.6 + loader 0.2) |
+| Size options, no pipeline asset | 7.0 (wasm 5.2 + data 1.6 + loader 0.2) |
+| **Now: no URP, no Input System** | **3.0** (wasm 2.1 + data 0.7 + loader 0.1) |
 
-What got it down: Brotli, IL2CPP "optimize size", wasm "disk size + LTO", no exception support, no render pipeline asset in the Web build (the editor stays on URP), a one-camera build scene, and URP post-processing resources left out (the film grain textures alone were 2.5 MB raw).
+What got it down: Brotli, IL2CPP "optimize size", wasm "disk size + LTO", no exception support (7.0), then taking the packages out of the project: **URP** (its core forces the Physics and Terrain modules and a lot of managed code) and the **Input System** (it depends on UIElements, which depends on Physics: the whole PhysX backend and the UI Toolkit runtime were in the player for a game that reads one pointer and one key). The project is on the built-in pipeline and the legacy `UnityEngine.Input`; the manifest has only uGUI and the five modules the game uses. Left in the player: Core, Audio, UI (uGUI canvas), IMGUI (uGUI needs it), text rendering, JSON.
 
-This is above the 2-5 MB that ad networks usually accept, and I am not going to pretend otherwise: Unity's player is the floor, not the game. On a throw-away copy of the project without URP (built-in pipeline) the same game measured 5.5 MB with full exception support, so the floor is roughly 5 MB; that change is separate (it removes URP from the project). In production this would go through a playable converter, or ship as the 12 KB HTML reference.
+The biggest single item now is the IL2CPP metadata (0.9 MB compressed in the data file) and the engine core in the wasm. That is the floor of a Unity Web player; the game itself is a few hundred KB of it.
+
+**Against ad-network limits** (the numbers below are the usual ones, I did not re-check each network's current docs): most networks cap a playable at about 5 MB, Meta at about 2 MB. 3.0 MB fits the 5 MB class as a zip (the `.unityweb` files are already Brotli, so zip adds nothing); as a single self-contained HTML with the files inlined as base64 it is about 4.0 MB, still inside 5 MB, but it needs a converter step that this repo does not have. It does **not** fit a 2 MB cap: that needs the 12 KB HTML reference, not Unity.
 
 ## Build and deploy
 

@@ -34,7 +34,7 @@ Entry points: `/stage N` starts a stage, `/finish` closes it. Steps they run:
 - Scope discipline: only the current stage. Ideas for later go to the "Backlog" section of `docs/PROGRESS.md`.
 
 ## Environment
-- Unity **6000.3.18f1**, URP 2D template, Input System package (use it, not the legacy Input Manager). Target platform: Web.
+- Unity **6000.3.18f1**, **built-in render pipeline** and the legacy `UnityEngine.Input` (Active Input Handling = Input Manager). No URP and no Input System package: both drag UIElements/Physics and a lot of managed code into the Web player (7.0 -> 3.0 MB); do not add them back or any other package without asking. Target platform: Web.
 - Windows machine, Git Bash. You cannot press Play, but you **can compile the project** headless (below). Only what needs eyes or a device goes into the PR's "Check in editor" list.
 - `CoreTests/` is a plain .NET NUnit project (net8.0, hand-written `CoreTests/CoreTests.csproj`) that compiles `Assets/_Project/Core/**/*.cs` directly. Run: `dotnet test CoreTests`. NUnit 4: use `Assert.That(..., Is.EqualTo(...))`, not `CollectionAssert`.
 - **Unity compile check** (about 20 s, also generates `.meta` files — commit them):
