@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using WormRush.Config;
@@ -7,8 +8,9 @@ namespace WormRush.View
 {
     /// <summary>
     /// Everything drawn in screen space: length counter, persistent CTA, tutorial hand, "Block their path!",
-    /// the end card. Built from code on one canvas (Screen Space - Camera, so the render check sees it too) and
-    /// driven by <see cref="Present"/> from a PlayableFlow; it holds no game logic. Layout is in CSS-like units
+    /// the end card, and the confetti over all of it. Built from code on one canvas (Screen Space - Camera, so
+    /// the render check sees it too) and driven by <see cref="Present"/> from a PlayableFlow; it holds no game
+    /// logic, and every animation decision is a <see cref="UiJuice"/> pose. Layout is in CSS-like units
     /// (390 x 844 reference), so the numbers below follow reference/worm-rush-playable.html.
     /// </summary>
     public sealed class PlayableUi
@@ -21,6 +23,10 @@ namespace WormRush.View
         // The world's instanced layers sort by distance, which depends on the 2D renderer's sort axis and so on where
         // the camera is; an explicit sorting order keeps the UI above them wherever the player is.
         const int CanvasSortingOrder = 100;
+        // A frame longer than this (a tab coming back, a breakpoint) advances the UI by this much, no more.
+        const float MaxFrameSeconds = 0.05f;
+        // The UI's own random stream (confetti), apart from the sim's seeded one.
+        const int JuiceSeedMask = 0x5549;
 
         // Length counter (top centre).
         const int LengthFontSize = 20;
@@ -62,12 +68,13 @@ namespace WormRush.View
         const float EndButtonPadX = 46f;
         const float EndButtonHeight = 62f;
         const float EndButtonLip = 5f;
-        const float EndPopSeconds = 0.5f;
-        const float EndPopOvershoot = 1.15f;
-        const float EndPopFromScale = 0.3f;
-        const float EndPopPeakAt = 0.7f;
-        const float EndPulseSeconds = 1f;
-        const float EndPulseAmount = 0.08f;
+        const int MaxTitleLetters = 16;
+        const float LetterBox = 64f;
+        const float FallbackAdvance = 0.6f;    // of the font size, when the font has no metrics for a character
+
+        // Button light: the beam's colour and how far it travels past the face on each side.
+        const float ShineAlpha = 0.65f;
+        const float ShineTravelPad = 0.2f;     // of the button width
 
         const float OutlineDistance = 2.5f;
 
@@ -78,29 +85,47 @@ namespace WormRush.View
         const float PopupBoxWidth = 360f;
         const float PopupBoxHeight = 64f;
 
+        // Confetti images are one size and scaled, so moving them never rebuilds a mesh.
+        const float FxNativeSize = 100f;
+
         readonly PlayableConfig _config;
         readonly Camera _camera;
         readonly UiKit _kit;
+        readonly UiJuice _juice;
         readonly GameObject _root;
         readonly Canvas _canvas;
 
         readonly Text _length;
         readonly Text _blockHint;
-        readonly RectTransform _cta;
+        readonly PillButton _cta;
         readonly RectTransform _tutorial;
         readonly CanvasGroup _tutorialGroup;
         readonly RectTransform _tutorialDot;
         readonly RectTransform _endCard;
-        readonly Text _endTitle;
+        readonly Image _dim;
+        readonly Image _flash;
+        readonly Image _rays;
+        readonly Text[] _letters;
+        readonly float[] _letterX;
         readonly Text _endSubtitle;
-        readonly RectTransform _endButton;
+        readonly PillButton _endButton;
 
         readonly Text[] _popups;
         readonly int[] _popupKeys;
 
+        readonly Image[] _fxImages;
+        readonly RectTransform[] _fxRects;
+
         int _lastLength = -1;
+        int _letterCount;
         bool _endShown;
-        float _endShownAt;
+        bool _endWon;
+        bool _hintShown;
+        float _hintShownAt;
+        float _lastTime;
+        bool _hasTime;
+        Vector2 _pointer;
+        bool _pointerIsMouse;
 
         public static PlayableUi Create(PlayableConfig config, Camera camera)
         {
@@ -112,6 +137,7 @@ namespace WormRush.View
             _config = config;
             _camera = camera;
             _kit = new UiKit();
+            _juice = new UiJuice(config.UiJuice, config.Seed ^ JuiceSeedMask);
 
             _root = new GameObject("WormRush UI", typeof(RectTransform), typeof(Canvas));
             _canvas = _root.GetComponent<Canvas>();
@@ -124,6 +150,7 @@ namespace WormRush.View
 
             Color shadow = new Color(0f, 0f, 0f, 0.7f);
             Color stroke = Color.black;
+            Color shine = new Color(1f, 1f, 1f, ShineAlpha);
 
             // World popups first, so every HUD element and the end card draw on top of them.
             int popupCount = Mathf.Max(1, config.Juice.PopupCapacity);
@@ -138,7 +165,7 @@ namespace WormRush.View
                 _popups[i] = popup;
             }
 
-            _length =_kit.NewText("Length", root, "", LengthFontSize, Color.white);
+            _length = _kit.NewText("Length", root, "", LengthFontSize, Color.white);
             UiKit.Place(_length.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -LengthTop), new Vector2(240f, 30f));
             UiKit.AddShadow(_length, shadow, new Vector2(0f, -2f));
 
@@ -152,7 +179,7 @@ namespace WormRush.View
             _tutorialGroup = _tutorial.gameObject.AddComponent<CanvasGroup>();
             _tutorialGroup.interactable = false;
             _tutorialGroup.blocksRaycasts = false;
-            Image track = _kit.NewImage("Track", _tutorial, null, new Color(1f, 1f, 1f, TutorialTrackAlpha));
+            Image track = _kit.NewImage("Track", _tutorial, _kit.Square, new Color(1f, 1f, 1f, TutorialTrackAlpha));
             UiKit.Place(track.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(TutorialTrackHalf * 2f, TutorialTrackThickness));
             Image dot = _kit.NewImage("Dot", _tutorial, _kit.Circle, Color.white);
@@ -164,21 +191,33 @@ namespace WormRush.View
             UiKit.AddOutline(tutorialLabel, stroke, OutlineDistance);
 
             // Persistent CTA.
-            PillButton cta = _kit.NewPillButton("Cta", root, config.CtaText, CtaFontSize, CtaPadX, CtaHeight,
-                config.CtaTopColor, config.CtaBottomColor, config.CtaEdgeColor, config.CtaTextColor, CtaLip);
-            _cta = cta.Root;
-            UiKit.Place(_cta, new Vector2(0.5f, 0f), new Vector2(0f, CtaBottom + CtaHeight * 0.5f), _cta.sizeDelta);
+            _cta = _kit.NewPillButton("Cta", root, config.CtaText, CtaFontSize, CtaPadX, CtaHeight,
+                config.CtaTopColor, config.CtaBottomColor, config.CtaEdgeColor, config.CtaTextColor, CtaLip,
+                config.CtaTopColor, shine);
+            UiKit.Place(_cta.Root, new Vector2(0.5f, 0f), new Vector2(0f, CtaBottom + CtaHeight * 0.5f), _cta.Root.sizeDelta);
 
-            // End card, on top of everything.
+            // End card.
             _endCard = UiKit.NewRect("EndCard", root);
             UiKit.Stretch(_endCard);
-            Image dim = _kit.NewImage("Dim", _endCard, null, config.EndDimColor);
-            UiKit.Stretch(dim.rectTransform);
+            _dim = _kit.NewImage("Dim", _endCard, _kit.Square, config.EndDimColor);
+            UiKit.Stretch(_dim.rectTransform);
 
-            _endTitle = _kit.NewText("Title", _endCard, "", EndTitleFontSize, Color.white);
-            UiKit.Place(_endTitle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, EndTitleY), new Vector2(420f, 60f));
-            UiKit.AddShadow(_endTitle, config.EndTitleShadowColor, new Vector2(0f, -4f));
-            UiKit.AddShadow(_endTitle, new Color(0f, 0f, 0f, 0.65f), new Vector2(0f, -8f));
+            _rays = _kit.NewImage("Rays", _endCard, _kit.Rays, Color.white);
+            UiKit.Place(_rays.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, EndTitleY),
+                Vector2.one * config.UiJuice.RaysSize);
+
+            // The title is one Text per letter so each can drop, tilt and ride the wave on its own.
+            _letters = new Text[MaxTitleLetters];
+            _letterX = new float[MaxTitleLetters];
+            for (int i = 0; i < _letters.Length; i++)
+            {
+                Text letter = _kit.NewText("Letter", _endCard, "", EndTitleFontSize, Color.white);
+                UiKit.Place(letter.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, EndTitleY), new Vector2(LetterBox, LetterBox));
+                UiKit.AddShadow(letter, config.EndTitleShadowColor, new Vector2(0f, -4f));
+                UiKit.AddShadow(letter, new Color(0f, 0f, 0f, 0.65f), new Vector2(0f, -8f));
+                letter.gameObject.SetActive(false);
+                _letters[i] = letter;
+            }
 
             _endSubtitle = _kit.NewText("Subtitle", _endCard, "", EndSubtitleFontSize, new Color(1f, 1f, 1f, EndSubtitleAlpha));
             _endSubtitle.fontStyle = FontStyle.Normal;
@@ -186,15 +225,39 @@ namespace WormRush.View
             UiKit.Place(_endSubtitle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, EndSubtitleY),
                 new Vector2(EndSubtitleWidth, EndSubtitleHeight));
 
-            PillButton endButton = _kit.NewPillButton("Button", _endCard, config.EndButtonText, EndButtonFontSize,
+            _endButton = _kit.NewPillButton("Button", _endCard, config.EndButtonText, EndButtonFontSize,
                 EndButtonPadX, EndButtonHeight, config.EndButtonTopColor, config.EndButtonBottomColor,
-                config.EndButtonEdgeColor, config.EndButtonTextColor, EndButtonLip);
-            _endButton = endButton.Root;
-            UiKit.Place(_endButton, new Vector2(0.5f, 0.5f), new Vector2(0f, EndButtonY), _endButton.sizeDelta);
+                config.EndButtonEdgeColor, config.EndButtonTextColor, EndButtonLip, config.EndButtonTopColor, shine);
+            UiKit.Place(_endButton.Root, new Vector2(0.5f, 0.5f), new Vector2(0f, EndButtonY), _endButton.Root.sizeDelta);
+
+            _flash = _kit.NewImage("Flash", _endCard, _kit.Square, new Color(1f, 1f, 1f, 0f));
+            UiKit.Stretch(_flash.rectTransform);
+
+            // Confetti, stars and rings: over everything, on a canvas of their own so they re-batch alone.
+            RectTransform fx = UiKit.NewRect("Fx", root);
+            UiKit.Stretch(fx);
+            fx.gameObject.AddComponent<Canvas>();
+            int fxCount = Mathf.Max(1, config.UiJuice.FxCapacity);
+            _fxImages = new Image[fxCount];
+            _fxRects = new RectTransform[fxCount];
+            for (int i = 0; i < fxCount; i++)
+            {
+                Image image = _kit.NewImage("Piece", fx, _kit.Square, Color.white);
+                UiKit.Place(image.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * FxNativeSize);
+                image.gameObject.SetActive(false);
+                _fxImages[i] = image;
+                _fxRects[i] = image.rectTransform;
+            }
 
             _tutorial.gameObject.SetActive(false);
             _blockHint.gameObject.SetActive(false);
             _endCard.gameObject.SetActive(false);
+        }
+
+        /// <summary>Reactions and sounds of the UI itself; the caller plays <c>Sounds</c> and then clears the list.</summary>
+        public List<SoundRequest> Sounds
+        {
+            get { return _juice.Sounds; }
         }
 
         /// <summary>
@@ -203,17 +266,43 @@ namespace WormRush.View
         /// </summary>
         public bool IsOverCta(Vector2 screenPoint)
         {
-            return _cta.gameObject.activeSelf &&
-                   RectTransformUtility.RectangleContainsScreenPoint(_cta, screenPoint, _camera);
+            return _cta.Root.gameObject.activeSelf &&
+                   RectTransformUtility.RectangleContainsScreenPoint(_cta.Root, screenPoint, _camera);
+        }
+
+        /// <summary>Where the pointer is, for the hover state of the end button. Call before <see cref="Present"/>.</summary>
+        public void SetPointer(Vector2 screenPoint, bool isMouse)
+        {
+            _pointer = screenPoint;
+            _pointerIsMouse = isMouse;
+        }
+
+        /// <summary>A press on a button (the CTA, or anywhere on the end card): squash, burst and tap sound.</summary>
+        public void Press(Vector2 screenPoint, float screenWidth, float screenHeight)
+        {
+            Vector2 ui = ScreenToUi(screenPoint, screenWidth, screenHeight);
+            _juice.Press(ui.x, ui.y, _endShown ? UiTarget.EndButton : UiTarget.Cta);
+        }
+
+        /// <summary>Game sounds the HUD bumps with (eating, kills, death): pass what JuiceState asked for.</summary>
+        public void React(List<SoundRequest> requests)
+        {
+            for (int i = 0; i < requests.Count; i++) _juice.React(requests[i].Id, requests[i].Step);
         }
 
         /// <summary>
-        /// Syncs the screen with the flow. <paramref name="time"/> drives the pop and pulse animations;
-        /// the size is the render target in pixels and sets the UI scale.
+        /// Syncs the screen with the flow. <paramref name="time"/> is a clock in seconds (its differences drive
+        /// the animations); the size is the render target in pixels and sets the UI scale.
         /// </summary>
         public void Present(PlayableFlow flow, WormSim sim, float time, float screenWidth, float screenHeight)
         {
             _canvas.scaleFactor = ScaleFor(screenWidth, screenHeight);
+            float dt = _hasTime ? Mathf.Clamp(time - _lastTime, 0f, MaxFrameSeconds) : 0f;
+            _lastTime = time;
+            _hasTime = true;
+
+            float uiHeight = screenHeight / _canvas.scaleFactor;
+            SetAnchor(ref _juice.Cta, 0f, -uiHeight * 0.5f + CtaBottom + CtaHeight * 0.5f, _cta);
 
             int length = Mathf.FloorToInt(sim.Player.Length * 10f);
             if (length != _lastLength)
@@ -222,19 +311,50 @@ namespace WormRush.View
                 _length.text = _config.LengthLabel + length;
             }
 
-            _cta.gameObject.SetActive(flow.CtaVisible);
-            if (flow.CtaVisible) _cta.localScale = Vector3.one * Pulse(time, _config.CtaPulseSeconds, _config.CtaPulseAmount);
-            _blockHint.gameObject.SetActive(flow.BlockHintVisible);
+            bool end = flow.State == FlowState.EndCard;
+            if (end && !_endShown) ShowEndCard(flow.EndKind);
+            if (!end && _endShown)
+            {
+                _endCard.gameObject.SetActive(false);
+                _juice.EndEndCard();
+            }
+            _endShown = end;
+
+            bool hover = end && _pointerIsMouse &&
+                         RectTransformUtility.RectangleContainsScreenPoint(_endButton.Root, _pointer, _camera);
+            _juice.SetHover(hover);
+            _juice.Step(dt, flow.CtaVisible);
+
+            _length.rectTransform.localScale = Vector3.one * _juice.CounterScale;
+            _length.color = Color.Lerp(Color.white, _config.HintColor, _juice.CounterGlow);
+
+            _cta.Root.gameObject.SetActive(flow.CtaVisible);
+            if (flow.CtaVisible)
+            {
+                _juice.CtaPose(out ButtonPose pose);
+                ApplyPose(_cta, pose);
+            }
+
+            bool hintVisible = flow.BlockHintVisible;
+            if (hintVisible && !_hintShown) _hintShownAt = time;
+            _hintShown = hintVisible;
+            _blockHint.gameObject.SetActive(hintVisible);
+            if (hintVisible) _blockHint.rectTransform.localScale = Vector3.one * _juice.HintScale(time - _hintShownAt, time);
 
             bool tutorial = flow.TutorialVisible;
             _tutorial.gameObject.SetActive(tutorial);
             if (tutorial) AnimateTutorial(flow.TutorialAlpha, sim.Time);
 
-            bool end = flow.State == FlowState.EndCard;
-            if (end && !_endShown) ShowEndCard(flow.EndKind, time);
-            if (!end && _endShown) _endCard.gameObject.SetActive(false);
-            _endShown = end;
-            if (end) AnimateEndCard(time - _endShownAt);
+            if (end) AnimateEndCard();
+            PresentFx();
+        }
+
+        void SetAnchor(ref UiAnchor anchor, float x, float y, PillButton button)
+        {
+            anchor.X = x;
+            anchor.Y = y;
+            anchor.HalfWidth = button.Width * 0.5f;
+            anchor.HalfHeight = button.Height * 0.5f;
         }
 
         void AnimateTutorial(float alpha, float simTime)
@@ -246,51 +366,187 @@ namespace WormRush.View
             _tutorialDot.sizeDelta = Vector2.one * radius * 2f;
         }
 
-        void ShowEndCard(EndKind kind, float time)
+        void ShowEndCard(EndKind kind)
         {
-            bool won = kind != EndKind.SoClose;
+            _endWon = kind != EndKind.SoClose;
+            string title;
             switch (kind)
             {
                 case EndKind.Awesome:
-                    _endTitle.text = _config.EndAwesomeTitle;
+                    title = _config.EndAwesomeTitle;
                     break;
                 case EndKind.NiceMoves:
-                    _endTitle.text = _config.EndNiceMovesTitle;
+                    title = _config.EndNiceMovesTitle;
                     break;
                 default:
-                    _endTitle.text = _config.EndSoCloseTitle;
+                    title = _config.EndSoCloseTitle;
                     break;
             }
 
-            _endSubtitle.text = won ? _config.EndWinSubtitle : _config.EndLoseSubtitle;
-            _endShownAt = time;
+            LayOutTitle(title);
+            _endSubtitle.text = _endWon ? _config.EndWinSubtitle : _config.EndLoseSubtitle;
+
+            Color rays = _endWon ? _config.HintColor : _config.EndTitleShadowColor;
+            rays.a = 0f;
+            _rays.color = rays;
+
             _endCard.gameObject.SetActive(true);
+            _endButton.Root.localScale = Vector3.zero;
+
+            // The anchors the burst comes out of: where the title and the button sit on this layout.
+            _juice.Title = new UiAnchor { X = 0f, Y = EndTitleY, HalfWidth = _juice.Title.HalfWidth, HalfHeight = EndTitleFontSize * 0.6f };
+            SetAnchor(ref _juice.EndButton, 0f, EndButtonY, _endButton);
+            _juice.BeginEndCard(_endWon);
         }
 
-        /// <summary>Title pops in (scale 0.3 to overshoot to 1, ease-out), the button pulses, as in the reference CSS.</summary>
-        void AnimateEndCard(float elapsed)
+        /// <summary>One Text per character, centred as a line; each remembers its resting x.</summary>
+        void LayOutTitle(string title)
         {
-            float t = Mathf.Clamp01(elapsed / EndPopSeconds);
-            float scale;
-            if (t < EndPopPeakAt)
-                scale = Mathf.Lerp(EndPopFromScale, EndPopOvershoot, EaseOut(t / EndPopPeakAt));
-            else
-                scale = Mathf.Lerp(EndPopOvershoot, 1f, EaseOut((t - EndPopPeakAt) / (1f - EndPopPeakAt)));
-            _endTitle.rectTransform.localScale = Vector3.one * scale;
+            _letterCount = Mathf.Min(title.Length, _letters.Length);
+            _kit.Font.RequestCharactersInTexture(title, EndTitleFontSize, FontStyle.Bold);
 
-            Color color = _endTitle.color;
-            color.a = EaseOut(t);
-            _endTitle.color = color;
+            float total = 0f;
+            for (int i = 0; i < _letterCount; i++)
+            {
+                float advance = _kit.Font.GetCharacterInfo(title[i], out CharacterInfo info, EndTitleFontSize, FontStyle.Bold)
+                    ? info.advance
+                    : EndTitleFontSize * FallbackAdvance;
+                _letterX[i] = advance;
+                total += advance;
+            }
 
-            _endButton.localScale = Vector3.one * Pulse(elapsed, EndPulseSeconds, EndPulseAmount);
+            float x = -total * 0.5f;
+            for (int i = 0; i < _letters.Length; i++)
+            {
+                if (i >= _letterCount)
+                {
+                    _letters[i].gameObject.SetActive(false);
+                    continue;
+                }
+
+                float advance = _letterX[i];
+                _letterX[i] = x + advance * 0.5f;
+                x += advance;
+                _letters[i].text = title[i] == ' ' ? string.Empty : title[i].ToString();
+                _letters[i].gameObject.SetActive(true);
+            }
+
+            _juice.Title = new UiAnchor { HalfWidth = total * 0.5f };
         }
 
-        /// <summary>Scale that eases from 1 up to 1 + amount and back once per period (the reference's CSS pulse).</summary>
-        static float Pulse(float time, float period, float amount)
+        /// <summary>The end card, a pose at a time: veil, rays, letters, subtitle, button, flash.</summary>
+        void AnimateEndCard()
         {
-            if (period <= 0f || amount == 0f) return 1f;
-            float phase = Mathf.Repeat(time / period, 1f);
-            return 1f + amount * (0.5f - 0.5f * Mathf.Cos(phase * Mathf.PI * 2f));
+            Color dim = _config.EndDimColor;
+            dim.a *= _juice.DimAmount;
+            _dim.color = dim;
+
+            _juice.RaysPose(out float raysScale, out float raysRotation, out float raysAlpha);
+            Color raysColor = _rays.color;
+            raysColor.a = raysAlpha;
+            _rays.color = raysColor;
+            _rays.rectTransform.localScale = Vector3.one * raysScale;
+            _rays.rectTransform.localRotation = Quaternion.Euler(0f, 0f, raysRotation);
+
+            for (int i = 0; i < _letterCount; i++)
+            {
+                _juice.LetterPose(i, out LetterPose pose);
+                RectTransform rect = _letters[i].rectTransform;
+                rect.anchoredPosition = new Vector2(_letterX[i], EndTitleY + pose.Y);
+                rect.localRotation = Quaternion.Euler(0f, 0f, pose.Rotation);
+                rect.localScale = Vector3.one * pose.Scale;
+                Color color = Color.Lerp(Color.white, _config.HintColor, pose.Gold);
+                color.a = pose.Alpha;
+                _letters[i].color = color;
+            }
+
+            _juice.SubtitlePose(out float subtitleAlpha, out float subtitleRise);
+            Color subtitle = _endSubtitle.color;
+            subtitle.a = EndSubtitleAlpha * subtitleAlpha;
+            _endSubtitle.color = subtitle;
+            _endSubtitle.rectTransform.anchoredPosition = new Vector2(0f, EndSubtitleY - subtitleRise);
+
+            _juice.EndButtonPose(out ButtonPose button);
+            ApplyPose(_endButton, button);
+
+            Color flash = _flash.color;
+            flash.a = _juice.FlashAlpha;
+            _flash.color = flash;
+        }
+
+        /// <summary>Squash and stretch, wobble, halo and the sweeping beam of a button.</summary>
+        static void ApplyPose(PillButton button, in ButtonPose pose)
+        {
+            button.Root.localScale = new Vector3(pose.ScaleX, pose.ScaleY, 1f);
+            button.Root.localRotation = Quaternion.Euler(0f, 0f, pose.Rotation);
+
+            Color glow = button.Glow.color;
+            glow.a = pose.GlowAlpha;
+            button.Glow.color = glow;
+
+            bool shining = pose.Shine >= 0f;
+            if (button.Shine.gameObject.activeSelf != shining) button.Shine.gameObject.SetActive(shining);
+            if (shining)
+            {
+                float travel = button.Width * (0.5f + ShineTravelPad);
+                button.Shine.anchoredPosition = new Vector2(Mathf.Lerp(-travel, travel, pose.Shine), 0f);
+            }
+        }
+
+        void PresentFx()
+        {
+            UiFxPool pool = _juice.Fx;
+            for (int i = 0; i < _fxImages.Length; i++)
+            {
+                Image image = _fxImages[i];
+                if (i >= pool.Count)
+                {
+                    if (image.gameObject.activeSelf) image.gameObject.SetActive(false);
+                    continue;
+                }
+
+                ref UiPiece piece = ref pool.Items[i];
+                UiFxPool.Look(piece, out float width, out float height, out float alpha);
+
+                image.sprite = SpriteFor(piece.Kind);
+                Color color = ColorFor(piece.ColorSlot);
+                color.a *= alpha;
+                image.color = color;
+
+                RectTransform rect = _fxRects[i];
+                rect.anchoredPosition = new Vector2(piece.X, piece.Y);
+                rect.localRotation = Quaternion.Euler(0f, 0f, piece.Rotation);
+                rect.localScale = new Vector3(width / FxNativeSize, height / FxNativeSize, 1f);
+                if (!image.gameObject.activeSelf) image.gameObject.SetActive(true);
+            }
+        }
+
+        Sprite SpriteFor(UiFxKind kind)
+        {
+            switch (kind)
+            {
+                case UiFxKind.Star:
+                    return _kit.Star;
+                case UiFxKind.Ring:
+                    return _kit.Ring;
+                case UiFxKind.Dot:
+                    return _kit.Circle;
+                default:
+                    return _kit.Square;
+            }
+        }
+
+        Color ColorFor(int slot)
+        {
+            if (slot == UiFxPool.ColorWhite) return Color.white;
+            if (slot == UiFxPool.ColorGold) return _config.HintColor;
+            return _config.PrimaryColor(slot);
+        }
+
+        Vector2 ScreenToUi(Vector2 screenPoint, float screenWidth, float screenHeight)
+        {
+            float scale = _canvas.scaleFactor > 0f ? _canvas.scaleFactor : 1f;
+            return new Vector2(screenPoint.x - screenWidth * 0.5f, screenPoint.y - screenHeight * 0.5f) / scale;
         }
 
         /// <summary>UI units to pixels for a render target of this size.</summary>
@@ -341,12 +597,6 @@ namespace WormRush.View
                 text.rectTransform.localScale = Vector3.one * (pixelSize / (PopupRasterFontSize * uiScale));
                 if (!text.gameObject.activeSelf) text.gameObject.SetActive(true);
             }
-        }
-
-        static float EaseOut(float t)
-        {
-            float inv = 1f - t;
-            return 1f - inv * inv;
         }
 
         public void Dispose()

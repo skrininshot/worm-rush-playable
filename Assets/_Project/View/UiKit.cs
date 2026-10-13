@@ -6,26 +6,56 @@ using Object = UnityEngine.Object;
 
 namespace WormRush.View
 {
-    /// <summary>A button-shaped group: edge (the "3D" lip under the face), face with a vertical gradient, label.</summary>
+    /// <summary>
+    /// A button-shaped group: a halo behind it, the edge (the "3D" lip under the face), the face with a vertical
+    /// gradient and a beam of light that can sweep across it, the label.
+    /// </summary>
     public sealed class PillButton
     {
         public RectTransform Root;
         public Text Label;
+        public Image Glow;
+        public Image Face;
+        public RectTransform Shine;
+        public float Width;
+        public float Height;
     }
 
     /// <summary>
-    /// Builds uGUI pieces from code so no scene or prefab wiring is needed: the built-in font, two procedural
-    /// sprites (circle and a 9-sliced pill), text with outline, gradient buttons. Owns what it creates.
+    /// Builds uGUI pieces from code so no scene or prefab wiring is needed: the built-in font, one procedural
+    /// sprite atlas (circle, 9-sliced pill, square, four-point star, ring, soft glow, light beam, sunburst), text
+    /// with outline, gradient buttons. All images share the atlas, so they batch together. Owns what it creates.
     /// </summary>
     public sealed class UiKit : IDisposable
     {
-        const int SpriteSize = 64;
-        const int PillBorder = 31;        // pill corner radius in texels: half of SpriteSize minus the 1 texel margin
-        const float PixelsPerUnit = 100f; // equals CanvasScaler's default reference pixels per unit
+        const int AtlasSize = 512;
+        const int CellSize = 64;
+        const int RaysCellSize = 256;
+        const int PillBorder = 31;              // pill corner radius in texels: half of CellSize minus the 1 texel margin
+        const float PixelsPerUnit = 100f;       // equals CanvasScaler's default reference pixels per unit
+        const float RingThickness = 3.5f;       // texels
+        const float StarCoreGain = 2.4f;
+        const float GlowPower = 2f;
+        const float BeamPower = 1.6f;
+        const float SquareInset = 2f;           // texels of margin so bilinear sampling never reads a neighbour cell
+        const int RayCount = 12;
+        const float RayContrast = 1.4f;       // low = soft wedge edges
+        const float RayFadePower = 0.8f;
+        const float GlowWidthFactor = 1.7f;     // halo size relative to the button
+        const float GlowHeightFactor = 3.2f;
+        const float BeamWidthFactor = 0.22f;    // light beam relative to the face
+        const float BeamHeightFactor = 2.2f;
+        const float BeamTiltDegrees = 20f;
 
         public readonly Font Font;
         public readonly Sprite Circle;
         public readonly Sprite Pill;
+        public readonly Sprite Square;
+        public readonly Sprite Star;
+        public readonly Sprite Ring;
+        public readonly Sprite Glow;
+        public readonly Sprite Beam;
+        public readonly Sprite Rays;
 
         readonly List<Object> _owned = new List<Object>();
 
@@ -33,10 +63,54 @@ namespace WormRush.View
         {
             Font = LoadFont();
 
-            float half = SpriteSize * 0.5f - 1f;
-            Circle = MakeSprite((x, y) => half + 0.5f - Mathf.Sqrt(x * x + y * y), Vector4.zero);
-            Pill = MakeSprite((x, y) => 0.5f - (Mathf.Sqrt(x * x + y * y) - PillBorder),
-                new Vector4(PillBorder, PillBorder, PillBorder, PillBorder));
+            Texture2D atlas = new Texture2D(AtlasSize, AtlasSize, TextureFormat.RGBA32, false)
+            {
+                name = "WormRush.UiAtlas",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+            Color32[] pixels = new Color32[AtlasSize * AtlasSize];
+
+            float half = CellSize * 0.5f - 1f;
+            Rect pill = Paint(pixels, 0, 0, CellSize, (x, y) => 0.5f - (Mathf.Sqrt(x * x + y * y) - PillBorder));
+            Rect circle = Paint(pixels, CellSize, 0, CellSize, (x, y) => half + 0.5f - Mathf.Sqrt(x * x + y * y));
+            Rect star = Paint(pixels, CellSize * 2, 0, CellSize, (x, y) =>
+            {
+                float d = Mathf.Sqrt(Mathf.Abs(x) / half) + Mathf.Sqrt(Mathf.Abs(y) / half);
+                return (1f - d) * StarCoreGain;
+            });
+            Rect ring = Paint(pixels, CellSize * 3, 0, CellSize, (x, y) =>
+            {
+                float r = Mathf.Sqrt(x * x + y * y);
+                return Mathf.Min(r - (half - RingThickness), half + 0.5f - r);
+            });
+            Rect glow = Paint(pixels, 0, CellSize, CellSize, (x, y) =>
+                Mathf.Pow(Mathf.Clamp01(1f - Mathf.Sqrt(x * x + y * y) / half), GlowPower));
+            Rect beam = Paint(pixels, CellSize, CellSize, CellSize, (x, y) =>
+                Mathf.Pow(Mathf.Clamp01(1f - Mathf.Abs(x) / half), BeamPower) * Mathf.Clamp01(half + 0.5f - Mathf.Abs(y)));
+            Rect square = Paint(pixels, CellSize * 2, CellSize, CellSize, (x, y) =>
+                Mathf.Min(half + 1f - SquareInset + 0.5f - Mathf.Abs(x), half + 1f - SquareInset + 0.5f - Mathf.Abs(y)));
+            float raysHalf = RaysCellSize * 0.5f - 1f;
+            Rect rays = Paint(pixels, 0, CellSize * 2, RaysCellSize, (x, y) =>
+            {
+                float r = Mathf.Sqrt(x * x + y * y);
+                float lobe = Mathf.Clamp01(Mathf.Sin(Mathf.Atan2(y, x) * RayCount) * RayContrast);
+                return lobe * Mathf.Pow(Mathf.Clamp01(1f - r / raysHalf), RayFadePower);
+            });
+
+            atlas.SetPixels32(pixels);
+            atlas.Apply(false, true);
+            _owned.Add(atlas);
+
+            Vector4 pillBorder = new Vector4(PillBorder, PillBorder, PillBorder, PillBorder);
+            Pill = MakeSprite(atlas, pill, pillBorder);
+            Circle = MakeSprite(atlas, circle, Vector4.zero);
+            Star = MakeSprite(atlas, star, Vector4.zero);
+            Ring = MakeSprite(atlas, ring, Vector4.zero);
+            Glow = MakeSprite(atlas, glow, Vector4.zero);
+            Beam = MakeSprite(atlas, beam, Vector4.zero);
+            Square = MakeSprite(atlas, square, Vector4.zero);
+            Rays = MakeSprite(atlas, rays, Vector4.zero);
         }
 
         static Font LoadFont()
@@ -59,33 +133,29 @@ namespace WormRush.View
             _owned.Clear();
         }
 
-        /// <summary>coverage(dx, dy) is the pixel's alpha (0..1, clamped) at an offset from the texture centre.</summary>
-        Sprite MakeSprite(Func<float, float, float> coverage, Vector4 border)
+        /// <summary>
+        /// Paints one square cell of the atlas. coverage(dx, dy) is the pixel's alpha (clamped to 0..1) at an
+        /// offset from the cell centre; the pixels are white so an Image's colour tints them.
+        /// </summary>
+        static Rect Paint(Color32[] pixels, int originX, int originY, int size, Func<float, float, float> coverage)
         {
-            Texture2D texture = new Texture2D(SpriteSize, SpriteSize, TextureFormat.RGBA32, false)
+            float centre = (size - 1) * 0.5f;
+            for (int y = 0; y < size; y++)
             {
-                name = "WormRush.UiSprite",
-                wrapMode = TextureWrapMode.Clamp,
-                filterMode = FilterMode.Bilinear,
-            };
-
-            Color32[] pixels = new Color32[SpriteSize * SpriteSize];
-            float centre = (SpriteSize - 1) * 0.5f;
-            for (int y = 0; y < SpriteSize; y++)
-            {
-                for (int x = 0; x < SpriteSize; x++)
+                for (int x = 0; x < size; x++)
                 {
                     float a = Mathf.Clamp01(coverage(x - centre, y - centre));
-                    pixels[y * SpriteSize + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
+                    pixels[(originY + y) * AtlasSize + originX + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
                 }
             }
-            texture.SetPixels32(pixels);
-            texture.Apply(false, true);
 
-            Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, SpriteSize, SpriteSize), new Vector2(0.5f, 0.5f),
-                PixelsPerUnit, 0, SpriteMeshType.FullRect, border);
+            return new Rect(originX, originY, size, size);
+        }
+
+        Sprite MakeSprite(Texture2D atlas, Rect rect, Vector4 border)
+        {
+            Sprite sprite = Sprite.Create(atlas, rect, new Vector2(0.5f, 0.5f), PixelsPerUnit, 0, SpriteMeshType.FullRect, border);
             sprite.name = "WormRush.UiSprite";
-            _owned.Add(texture);
             _owned.Add(sprite);
             return sprite;
         }
@@ -159,31 +229,55 @@ namespace WormRush.View
         }
 
         /// <summary>
-        /// A pill with a top-to-bottom gradient and a darker lip <paramref name="lip"/> units below it.
+        /// A pill with a top-to-bottom gradient and a darker lip <paramref name="lip"/> units below it, a halo
+        /// (<paramref name="glow"/>, invisible until a pose lights it) and a beam of light clipped to the face.
         /// Width follows the label; <paramref name="padX"/> is the space on each side.
         /// </summary>
         public PillButton NewPillButton(string name, Transform parent, string label, int fontSize, float padX, float height,
-            Color top, Color bottom, Color edge, Color textColor, float lip)
+            Color top, Color bottom, Color edge, Color textColor, float lip, Color glow, Color shine)
         {
             RectTransform root = NewRect(name, parent);
             Text text = NewText("Label", root, label, fontSize, textColor);
             float width = Mathf.Ceil(text.preferredWidth) + padX * 2f;
             root.sizeDelta = new Vector2(width, height);
 
-            // Children are created in draw order: lip, face, label.
+            // Children are created in draw order: halo, lip, face (with the beam inside it), label.
+            Image halo = NewImage("Glow", root, Glow, new Color(glow.r, glow.g, glow.b, 0f));
+            Place(halo.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(width * GlowWidthFactor, height * GlowHeightFactor));
+            halo.rectTransform.SetSiblingIndex(0);
+
             Image lipImage = NewImage("Lip", root, Pill, edge);
-            lipImage.rectTransform.SetSiblingIndex(0);
+            lipImage.rectTransform.SetSiblingIndex(1);
             Place(lipImage.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -lip), new Vector2(width, height));
 
             Image face = NewImage("Face", root, Pill, Color.white);
-            face.rectTransform.SetSiblingIndex(1);
+            face.rectTransform.SetSiblingIndex(2);
             Stretch(face.rectTransform);
             VerticalGradient gradient = face.gameObject.AddComponent<VerticalGradient>();
             gradient.Set(top, bottom);
 
+            // The beam only shows inside the face's shape (stencil mask from the face's own alpha).
+            Mask mask = face.gameObject.AddComponent<Mask>();
+            mask.showMaskGraphic = true;
+            Image beam = NewImage("Shine", face.rectTransform, Beam, shine);
+            Place(beam.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(width * BeamWidthFactor, height * BeamHeightFactor));
+            beam.rectTransform.localRotation = Quaternion.Euler(0f, 0f, BeamTiltDegrees);
+            beam.gameObject.SetActive(false);
+
             Stretch(text.rectTransform);
 
-            return new PillButton { Root = root, Label = text };
+            return new PillButton
+            {
+                Root = root,
+                Label = text,
+                Glow = halo,
+                Face = face,
+                Shine = beam.rectTransform,
+                Width = width,
+                Height = height,
+            };
         }
     }
 

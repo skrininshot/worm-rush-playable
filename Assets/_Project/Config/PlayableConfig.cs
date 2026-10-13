@@ -32,9 +32,9 @@ namespace WormRush.Config
         public Color KillPopupColor = new Color32(0xff, 0xd2, 0x3f, 0xff);
         public Color ValuePopupColor = Color.white;
         public Color PopupOutlineColor = Color.black;
-        [Tooltip("The persistent CTA breathes by this fraction of its size. 0 = still, as in the reference.")]
-        public float CtaPulseAmount = 0.05f;
-        public float CtaPulseSeconds = 1.2f;
+
+        [Header("UI juice (buttons, end card, confetti)")]
+        public UiJuiceConfig UiJuice = new UiJuiceConfig();
 
         [Header("Texts")]
         public string CtaText = "PLAY NOW";
@@ -145,7 +145,11 @@ namespace WormRush.Config
 
         void OnValidate()
         {
-            if (Palette != null && Palette.Length > 0) Sim.ColorCount = Palette.Length;
+            if (Palette != null && Palette.Length > 0)
+            {
+                Sim.ColorCount = Palette.Length;
+                UiJuice.ColorSlots = Palette.Length;
+            }
             if (StripeLength < 1) StripeLength = 1;
         }
     }

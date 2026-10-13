@@ -8,7 +8,7 @@ namespace WormRush.Flow
 {
     /// <summary>
     /// The playable's driver: owns the sim, the PlayableFlow beat sheet, the world and UI views and the ad network.
-    /// Each frame: input, sim step, flow update, juice (shake, particles, popups, sounds), draw. What a tap means depends on where it lands and on the flow:
+    /// Each frame: input, sim step, flow update, juice (shake, particles, popups, sounds), draw, UI (its own juice and sounds). What a tap means depends on where it lands and on the flow:
     /// the CTA button or anywhere on the end card goes to the store, everywhere else it steers (and the very
     /// first one starts the run).
     /// </summary>
@@ -99,7 +99,12 @@ namespace WormRush.Flow
             ended = _flow.State == FlowState.EndCard;
 #endif
 
-            if (_input.PressedThisFrame && (ended || overCta)) OpenStore();
+            _ui.SetPointer(_input.Position, _input.IsMouse);
+            if (_input.PressedThisFrame && (ended || overCta))
+            {
+                _ui.Press(_input.Position, Screen.width, Screen.height);
+                OpenStore();
+            }
             else if (!ended && !overCta) HandleSteering();
 
             float step = Mathf.Min(Time.deltaTime, _config.Sim.MaxStepSeconds);
@@ -107,7 +112,7 @@ namespace WormRush.Flow
             _flow.Update();
             _juice.Update(_sim, _flow, step);
             for (int i = 0; i < _juice.Sounds.Count; i++) _sound.Play(_juice.Sounds[i], Time.time);
-            _sound.Update(Time.time);
+            _ui.React(_juice.Sounds);
 
             if (_flow.State == FlowState.EndCard && !_endReported)
             {
@@ -121,6 +126,11 @@ namespace WormRush.Flow
             _world.Draw(_sim, view, _juice);
             _ui.Present(_flow, _sim, Time.time, Screen.width, Screen.height);
             _ui.PresentPopups(_juice, Screen.width, Screen.height);
+
+            // The UI's own sounds (a tap, the end button springing in) come out of Present.
+            for (int i = 0; i < _ui.Sounds.Count; i++) _sound.Play(_ui.Sounds[i], Time.time);
+            _ui.Sounds.Clear();
+            _sound.Update(Time.time);
         }
 
         void HandleSteering()

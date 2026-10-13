@@ -7,7 +7,7 @@ Short handoff for the next session. Keep each entry under ~15 lines.
 - Stage **2 — View + controls**: merged (PR #2).
 - Stage **3 — Bots + collisions**: merged (PR #3).
 - Stage **4 — Flow + end card**: merged (PR #4).
-- Stage **5 — Juice**: PR open, waiting for the user's review/merge. `dotnet test CoreTests` green (98/98), Unity compile headless exit 0, render check of the kill moment and the end card. Next: stage 6, only when the user says `/stage 6`.
+- Stage **5 — Juice**: PR open, waiting for the user's review/merge. `dotnet test CoreTests` green (126/126), Unity compile headless exit 0, render check of the kill moment and the end card. Next: stage 6, only when the user says `/stage 6`.
 - Repo contains: CLAUDE.md, docs/SPEC.md, reference HTML prototype, `Assets/_Project/{Core,Config,View,Flow,Editor,Resources}`, `CoreTests/`.
 - Press Play in `SampleScene` (or any scene with a camera): `Flow/Bootstrap` creates everything from code.
 
@@ -96,6 +96,14 @@ Known issues / TODO:
 - `PlayableConfig.asset` was not re-saved: the new `Juice` block takes its C# defaults until the asset is next saved in the editor.
 - Particles are not in `ScreenshotCapture.Benchmark` (it draws without juice); a burst is at most 26 circles per death, so the cost is small, but it is not measured.
 Where Claude went wrong and how it was caught: first draft of `JuiceConfig` carried a `[Tooltip]`, a UnityEngine attribute in Core, and a leftover placeholder field; caught by re-reading the file before the first test run, not by the compiler (the CoreTests project would have refused the attribute, Unity's asmdef has `noEngineReferences`, so it would have been caught there too). The reference's `ended` flag is set when the card appears, not when it is scheduled, so `JuiceState` reads the end-card state of the previous frame: a kill on the very frame the card appears still gets its shake and popup, as in the reference.
+
+### Stage 5, review round 1 — "ultra-dopamine" buttons (same PR)
+Feedback: AWESOME card and PLAY NOW buttons felt flat; wanted a UI that lives, animates, explodes on every action.
+Done: all of it is `UiJuice` in Core (springs, timeline, pools, 28 new tests, 126 total) drawn by `PlayableUi`. Both buttons: squash-and-stretch spring on every press, double heartbeat pulse, wobble, breathing halo, a beam of light sweeping the face (stencil-masked to the pill), hop + sparks every few seconds, mouse hover grows the end button (desktop only). A press anywhere on the end card or on the CTA throws confetti, stars and a shockwave ring out of the finger and plays a three-note tap. End card: white flash, rotating sunburst, title as one Text per letter (staggered drop-in with tilt and overshoot, then a wave with a gold highlight running along it), confetti blast out of the title, subtitle rises in, the button springs in with sparkles and a pop sound, then throws sparks. HUD: the CTA and the length counter bump on every pellet and harder on a kill, combo stars every 5th pellet, "Block their path!" pops in and pulses. `UiKit` now paints ONE atlas (circle, pill, square, star, ring, glow, beam, rays), so all UI images batch together; confetti lives on a nested canvas so it re-batches alone.
+Decisions: `PlayableConfig.CtaPulseAmount/Seconds` are gone (superseded by `UiJuice.Heartbeat*`; the stale keys stay in the asset until re-saved). New `PlayableConfig.UiJuice` block holds every number, defaults apply until the asset is re-saved. `ScreenshotCapture` steps the UI in real frames (`-shotUiSeconds`, `-shotPress 1`), so springs and confetti are where they would be on a device.
+Known issues / TODO:
+- Not felt or heard: the spring stiffness, the sweep timing and the three tap/pop blips are guesses; all are `UiJuiceConfig` numbers. If it is too much on a phone, lower `TapConfetti`, `EndSparklesPerSecond` and `FxCapacity` first.
+- Editor was open, so the headless compile ran with Unity's bundled csc (0 errors) and the render check on a copy of the project.
 
 ## Backlog
 - Tutorial: a real hand sprite instead of the dot; merge the UI sprites into one atlas to drop a batch.
