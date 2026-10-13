@@ -58,6 +58,16 @@ namespace WormRush.View
         public const float HandCell = HandCellSize;
         static readonly Color32 HandOutlineColor = new Color32(0x1c, 0x20, 0x40, 0xff);
 
+        // The restart icon: an open ring (a clockwise arrow) in the cell right of the hand, painted white.
+        const int RestartCellX = 384;
+        const float RestartRadius = 17f;        // texels, of the ring's centre line
+        const float RestartHalfThickness = 3f;
+        const float RestartArcStartDegrees = 130f;
+        const float RestartArcEndDegrees = 400f; // 270 degrees of ring; the gap is the top
+        const float RestartHeadLength = 11f;
+        const float RestartHeadHalfWidth = 9f;
+        const float RestartHeadBackstep = 2.5f; // the head's base sits this far back along the ring, so it joins it
+
         public readonly Font Font;
         public readonly Sprite Circle;
         public readonly Sprite Pill;
@@ -68,6 +78,7 @@ namespace WormRush.View
         public readonly Sprite Beam;
         public readonly Sprite Rays;
         public readonly Sprite Hand;
+        public readonly Sprite Restart;
 
         readonly List<Object> _owned = new List<Object>();
 
@@ -111,6 +122,7 @@ namespace WormRush.View
             });
 
             Rect hand = PaintHand(pixels, HandCellX, 0);
+            Rect restart = Paint(pixels, RestartCellX, 0, CellSize, (x, y) => 0.5f - RestartDistance(x, y));
 
             atlas.SetPixels32(pixels);
             atlas.Apply(false, true);
@@ -126,6 +138,7 @@ namespace WormRush.View
             Square = MakeSprite(atlas, square, Vector4.zero);
             Rays = MakeSprite(atlas, rays, Vector4.zero);
             Hand = MakeSprite(atlas, hand, Vector4.zero);
+            Restart = MakeSprite(atlas, restart, Vector4.zero);
         }
 
         static Font LoadFont()
@@ -237,6 +250,73 @@ namespace WormRush.View
                 default:
                     return CapsuleDistance(x, y, -25f, -11f, -14f, -22f, 7.5f);
             }
+        }
+
+        /// <summary>
+        /// Signed distance to the restart icon: a 270-degree ring with round ends and an arrowhead on its end at
+        /// the top left, pointing clockwise into the gap.
+        /// </summary>
+        static float RestartDistance(float x, float y)
+        {
+            float start = RestartArcStartDegrees * Mathf.Deg2Rad;
+            float end = RestartArcEndDegrees * Mathf.Deg2Rad;
+            float turn = Mathf.PI * 2f;
+
+            // The angle, lifted into [start, start + 2 pi): on the ring up to `end`, in the gap beyond it.
+            float angle = Mathf.Atan2(y, x);
+            while (angle < start) angle += turn;
+            while (angle >= start + turn) angle -= turn;
+
+            float arc;
+            if (angle <= end)
+            {
+                arc = Mathf.Abs(Mathf.Sqrt(x * x + y * y) - RestartRadius);
+            }
+            else
+            {
+                float nearest = angle - end < start + turn - angle ? end : start;
+                float ex = Mathf.Cos(nearest) * RestartRadius;
+                float ey = Mathf.Sin(nearest) * RestartRadius;
+                arc = Mathf.Sqrt((x - ex) * (x - ex) + (y - ey) * (y - ey));
+            }
+
+            // Arrowhead on the ring's end at `start` (the ring is walked clockwise, from `end` down to `start`):
+            // base across the ring, tip along the clockwise tangent, into the gap.
+            float tipAngle = start;
+            float tx = Mathf.Sin(tipAngle);
+            float ty = -Mathf.Cos(tipAngle);
+            float cx = Mathf.Cos(tipAngle) * RestartRadius - tx * RestartHeadBackstep;
+            float cy = Mathf.Sin(tipAngle) * RestartRadius - ty * RestartHeadBackstep;
+            float nx = Mathf.Cos(tipAngle);
+            float ny = Mathf.Sin(tipAngle);
+            float ax = cx + nx * RestartHeadHalfWidth;
+            float ay = cy + ny * RestartHeadHalfWidth;
+            float bx = cx - nx * RestartHeadHalfWidth;
+            float by = cy - ny * RestartHeadHalfWidth;
+            float px = cx + tx * RestartHeadLength;
+            float py = cy + ty * RestartHeadLength;
+            float head = TriangleDistance(x, y, ax, ay, bx, by, px, py);
+
+            return Mathf.Min(arc - RestartHalfThickness, head);
+        }
+
+        /// <summary>Signed distance (exact inside, a close bound outside) to a triangle of any winding.</summary>
+        static float TriangleDistance(float x, float y, float ax, float ay, float bx, float by, float cx, float cy)
+        {
+            float cross = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+            float sign = cross >= 0f ? 1f : -1f;
+            float d = EdgeDistance(x, y, ax, ay, bx, by, sign);
+            d = Mathf.Max(d, EdgeDistance(x, y, bx, by, cx, cy, sign));
+            return Mathf.Max(d, EdgeDistance(x, y, cx, cy, ax, ay, sign));
+        }
+
+        /// <summary>Distance of a point outside the left side (for sign 1) of the edge a to b; negative inside.</summary>
+        static float EdgeDistance(float x, float y, float ax, float ay, float bx, float by, float sign)
+        {
+            float ex = bx - ax;
+            float ey = by - ay;
+            float length = Mathf.Sqrt(ex * ex + ey * ey);
+            return -sign * (ex * (y - ay) - ey * (x - ax)) / length;
         }
 
         static float CircleDistance(float x, float y, float cx, float cy, float r)

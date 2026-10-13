@@ -7,7 +7,7 @@ Short handoff for the next session. Keep each entry under ~15 lines.
 - Stage **2 — View + controls**: merged (PR #2).
 - Stage **3 — Bots + collisions**: merged (PR #3).
 - Stage **4 — Flow + end card**: merged (PR #4).
-- Stage **5 — Juice**: merged (PR #5). Review round 1, the "ultra-dopamine" buttons and end card, is a follow-up PR (`stage-5-ui-juice`), waiting for the user's review/merge. `dotnet test CoreTests` green (143/143), Unity compile clean (headless, exit 0), render check of the kill moment, the tutorial finger and the end card. Review rounds 2-5 (PLAY NOW colours, finger hint, label rim, closer camera, end-card autopilot + edge death) are on the same branch. Next: stage 6, only when the user says `/stage 6`.
+- Stage **5 — Juice**: merged (PR #5). Review round 1, the "ultra-dopamine" buttons and end card, is a follow-up PR (`stage-5-ui-juice`), waiting for the user's review/merge. `dotnet test CoreTests` green (143/143), Unity compile clean (headless, exit 0), render check of the kill moment, the tutorial finger and the end card. Review rounds 2-6 (PLAY NOW colours, finger hint, label rim, closer camera, end-card autopilot + edge death, restart button) are on the same branch. Next: stage 6, only when the user says `/stage 6`.
 - Repo contains: CLAUDE.md, docs/SPEC.md, reference HTML prototype, `Assets/_Project/{Core,Config,View,Flow,Editor,Resources}`, `CoreTests/`.
 - Press Play in `SampleScene` (or any scene with a camera): `Flow/Bootstrap` creates everything from code.
 
@@ -132,7 +132,14 @@ Decisions:
 - `ClimaxTests` stand-ins now avoid the edge like a human would (`ClimaxHarness.Human` = edge-aware + body-aware); without that every "straight" run died on the wall at ~7 s. Acceptance numbers are unchanged (all four pilots stay >= 90%).
 Known issues / TODO: not seen with eyes (no render check: the change is sim-side, the end-card stills are unaffected). A player who steers toward the edge now ends the ad with SO CLOSE; if that is too harsh, ideas for later: a warning vignette near the border, or a short grace period.
 
+### Stage 5, review round 6 — restart button (same PR)
+Feedback: a small restart button, so the playable can be hosted (Cloudflare) and replayed.
+Done: a round icon button in the top-right corner (34 UI units disc, 44 hit area, 10 from the edges), always visible, drawn above the end card but under the confetti. A press starts a new run (`PlayableRunner.NewRun`, the same path as the editor's `R`), spins the arrow once and dips the disc; the press is the button's alone: it does not steer, start the run or open the store, and on the end card it wins over "tap anywhere". The icon (a 270 degree ring with an arrowhead) is one more cell in the generated UI atlas (`UiKit.Restart`), so there is still no image asset. `PlayableConfig.ShowRestartButton` (default true) and `RestartBackColor`/`RestartIconColor`.
+Decisions: it is a config switch, not a build flag, so a hosted demo and an ad-network build differ only by one value (stage 6 can expose it as a URL parameter). `IAdNetwork.GameEnd` fires again at the end of every run, as `NewRun` resets `_endReported`: right for a demo, wrong for a real network, which is the reason to switch the button off there.
+Known issues / TODO: not tapped on a device (touch hit size 44 units is the usual minimum); checked in the render check at 540x960 and 1080x1920 (play and end card), compile clean, no Core change (143 tests green).
+
 ## Backlog
+- Stage 6: `ShowRestartButton` as a URL parameter (off by default for real ad networks); decide whether a restart should reset or re-fire `GameEnd`.
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
 - Camera smoothing (the rigid follow is the reference's; shake itself is done).
 - Web build: disable Physics/Physics2D modules (stage 7).

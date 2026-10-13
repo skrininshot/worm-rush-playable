@@ -62,6 +62,14 @@ namespace WormRush.View
         const float TutorialDotMax = 24f;
         const float TutorialTrailAlpha = 0.6f;
 
+        // Restart button (top right). The hit area is a little bigger than the disc, for a thumb.
+        const float RestartHitSize = 44f;
+        const float RestartDiscSize = 34f;
+        const float RestartMargin = 10f;       // screen edge to the hit area
+        const float RestartSpinSeconds = 0.45f;
+        const float RestartSpinDegrees = 360f; // clockwise, eased out
+        const float RestartPressScale = 0.82f; // the disc dips to this on a press and comes back
+
         // End card.
         const int EndTitleFontSize = 44;
         const int EndSubtitleFontSize = 18;
@@ -128,6 +136,8 @@ namespace WormRush.View
         readonly float[] _letterX;
         readonly Text _endSubtitle;
         readonly PillButton _endButton;
+        readonly RectTransform _restart;
+        readonly RectTransform _restartIcon;
 
         readonly Text[] _popups;
         readonly int[] _popupKeys;
@@ -143,6 +153,8 @@ namespace WormRush.View
         float _hintShownAt;
         bool _tutorialShown;
         float _tutorialShownAt;
+        bool _restartSpinPending;
+        float _restartSpinAt = float.NegativeInfinity;
         float _lastTime;
         bool _hasTime;
         Vector2 _pointer;
@@ -277,6 +289,20 @@ namespace WormRush.View
             _flash = _kit.NewImage("Flash", _endCard, _kit.Square, new Color(1f, 1f, 1f, 0f));
             UiKit.Stretch(_flash.rectTransform);
 
+            // Restart: over the end card (it is not part of it, a tap there must not go to the store), under the confetti.
+            if (config.ShowRestartButton)
+            {
+                _restart = UiKit.NewRect("Restart", root);
+                UiKit.Place(_restart, new Vector2(1f, 1f),
+                    new Vector2(-(RestartMargin + RestartHitSize * 0.5f), -(RestartMargin + RestartHitSize * 0.5f)),
+                    Vector2.one * RestartHitSize);
+                Image disc = _kit.NewImage("Disc", _restart, _kit.Circle, config.RestartBackColor);
+                UiKit.Place(disc.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * RestartDiscSize);
+                Image icon = _kit.NewImage("Icon", _restart, _kit.Restart, config.RestartIconColor);
+                UiKit.Place(icon.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * RestartDiscSize);
+                _restartIcon = icon.rectTransform;
+            }
+
             // Confetti, stars and rings: over everything, on a canvas of their own so they re-batch alone.
             RectTransform fx = UiKit.NewRect("Fx", root);
             UiKit.Stretch(fx);
@@ -312,6 +338,18 @@ namespace WormRush.View
         {
             return _cta.Root.gameObject.activeSelf &&
                    RectTransformUtility.RectangleContainsScreenPoint(_cta.Root, screenPoint, _camera);
+        }
+
+        /// <summary>True when the pointer is on the restart button (always false when it is switched off).</summary>
+        public bool IsOverRestart(Vector2 screenPoint)
+        {
+            return _restart != null && RectTransformUtility.RectangleContainsScreenPoint(_restart, screenPoint, _camera);
+        }
+
+        /// <summary>The restart button was pressed: it dips and its arrow spins once.</summary>
+        public void PressRestart()
+        {
+            _restartSpinPending = true;
         }
 
         /// <summary>Where the pointer is, for the hover state of the end button. Call before <see cref="Present"/>.</summary>
@@ -392,7 +430,25 @@ namespace WormRush.View
             if (tutorial) AnimateTutorial(flow.TutorialAlpha, time - _tutorialShownAt);
 
             if (end) AnimateEndCard();
+            PresentRestart(time);
             PresentFx();
+        }
+
+        void PresentRestart(float time)
+        {
+            if (_restart == null) return;
+
+            if (_restartSpinPending)
+            {
+                _restartSpinPending = false;
+                _restartSpinAt = time;
+            }
+
+            float t = (time - _restartSpinAt) / RestartSpinSeconds;
+            bool spinning = t >= 0f && t < 1f;
+            float angle = spinning ? -RestartSpinDegrees * UiMotion.EaseOut(t) : 0f;
+            _restartIcon.localRotation = Quaternion.Euler(0f, 0f, angle);
+            _restart.localScale = Vector3.one * (spinning ? 1f - (1f - RestartPressScale) * UiMotion.Bump(t) : 1f);
         }
 
         void SetAnchor(ref UiAnchor anchor, float x, float y, PillButton button)

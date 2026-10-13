@@ -64,6 +64,12 @@ namespace WormRush.Config
         public Color EndTitleShadowColor = new Color32(0xff, 0x5d, 0x8f, 0xff);
         public Color HintColor = new Color32(0xff, 0xd2, 0x3f, 0xff);
 
+        [Header("Restart button (top right)")]
+        [Tooltip("A small button that starts the 25 s run again, so the playable can be hosted and replayed. Switch off for ad networks that supply their own replay.")]
+        public bool ShowRestartButton = true;
+        public Color RestartBackColor = new Color(0f, 0f, 0f, 0.45f);
+        public Color RestartIconColor = new Color(1f, 1f, 1f, 0.95f);
+
         [Header("Camera and input")]
         [Tooltip("World units visible across the shorter screen side at worm length 0.")]
         public float ViewSpan = 340f;
