@@ -8,6 +8,7 @@ Short handoff for the next session. Keep each entry under ~15 lines.
 - Stage **3 — Bots + collisions**: merged (PR #3).
 - Stage **4 — Flow + end card**: merged (PR #4).
 - Stage **5 — Juice**: merged (PR #5). Review round 1, the "ultra-dopamine" buttons and end card, is a follow-up PR (`stage-5-ui-juice`), waiting for the user's review/merge. `dotnet test CoreTests` green (143/143), Unity compile clean (headless, exit 0), render check of the kill moment, the tutorial finger and the end card. Review rounds 2-6 (PLAY NOW colours, finger hint, label rim, closer camera, end-card autopilot + edge death, restart button) are on the same branch. Next: stage 6, only when the user says `/stage 6`.
+- **Web build size + README**: PR `web-size-readme` (12.1 -> 7.0 MB, README, wrangler.jsonc), waiting for review; the user deploys after the merge.
 - Repo contains: CLAUDE.md, docs/SPEC.md, reference HTML prototype, `Assets/_Project/{Core,Config,View,Flow,Editor,Resources}`, `CoreTests/`.
 - Press Play in `SampleScene` (or any scene with a camera): `Flow/Bootstrap` creates everything from code.
 
@@ -151,11 +152,24 @@ Found by the first Web build (not visible in the editor): (1) the raw `.wasm` is
 Decisions: the build script sets compression/template through `PlayerSettings` and puts the old values back, so `ProjectSettings` is unchanged by it. Unity re-serialises URP assets and two ProjectSettings files on every build; those diffs are not committed.
 Known issues / TODO: checked by loading the build in a browser from a static server that sends no `Content-Encoding` (like Pages): loads, draws, UI and a kill popup show. Not checked: touch on a phone, sound in the Web build, `WebAdNetwork`/`.jslib` (store link on a real tap), real FPS. The Unity "Made with Unity" splash shows before the game (Personal licence). The wasm is big for what it does (stage 7: strip Physics/Physics2D and other modules). The active editor platform is now Web (the build switched it).
 
+### Build size and README (PR `web-size-readme`, not merged)
+Request: fit the Web build into ad-network sizes (2-5 MB), check it on Cloudflare, README with the link, size and a line that it took 2 days with Claude.
+Result: **12.1 MB -> 7.0 MB** (wasm 5.24, data 1.58, loader 0.11, framework 0.07). Not 2-5 MB: see "Decision" below.
+Done:
+- `WebBuild.cs`: IL2CPP Optimize size, wasm "Disk size + LTO", no exception support, arithmetic exceptions ignored, managed stripping High (it was already the default), no debug symbols; every setting put back, and the three ProjectSettings files are restored byte for byte (Unity wrote the build's values to disk). `-webExceptions full -webSymbols embedded` gives a readable stack when the build dies in the browser with "Uncaught undefined".
+- No render pipeline asset for the Web build only (default + every quality level, put back afterwards) and a generated one-camera scene instead of SampleScene. `Circle.shader` has a second, built-in-pipeline SubShader; URP remains first, so the editor, tests and render check are unchanged.
+- `WebBuildStrippers.cs`: URP post-processing textures are dropped from the build (film grain was 2.5 MB raw).
+- `CircleBatch` draws with `Graphics.DrawMeshInstanced` (Matrix4x4[] + MaterialPropertyBlock, same 1023-instance chunks). **CLAUDE.md Hard rule reworded**: `RenderMeshInstanced<T>` died in the size-optimised build (`Marshal.OffsetOf` in `RenderInstancedDataLayout` under IL2CPP fully-shared generics: "Uncaught undefined" on the first frame). `link.xml` for Matrix4x4 did not help; `DrawMeshInstanced` is non-generic.
+- `wrangler.jsonc` (Workers static assets, `npx wrangler deploy`), README rewritten.
+Decision (the user's): 7.0 MB stays in this PR. Much of the rest is URP: on a project copy with URP and the unused 2D packages removed from the manifest, with the built-in pipeline, the same game measured 5.5 MB with full exception support (the heavier setting; the exception-free build was only measured with debug symbols, 6.4 MB, so the clean number is an estimate of roughly 5 MB) and played in the browser. That edits `Packages/manifest.json` and render settings, so it is its own PR. The other 1 MB of data is the "Made with Unity" logo texture; `SplashScreen.show = false` did not take it out of the build on a Personal licence.
+Checked: local Workers runtime (`wrangler dev`, same static-assets code as production): Content-Type for `.unityweb` is `application/vnd.unity`, no Content-Encoding, loader unpacks in JS; the game loads and draws, UI and tutorial show, 61 fps in the browser pane. Not checked: the live URL (it still serves a placeholder until the user deploys), touch on a phone, sound, store link.
+Where Claude went wrong and how it was caught: the first size-optimised build "succeeded" and looked fine in the log, and was dead in the browser. Only loading the real build showed it. The exception was invisible (wasm without exception support prints "Uncaught undefined"), so a symbolised build with full exceptions was made to read the managed stack. The first guess (a stripped field, `link.xml`) was wrong and cost a build; the stack named `Marshal.OffsetOf` under a fully-shared generic struct, which is what the size setting turns on. Also: restoring settings in memory was not enough, QualitySettings.asset was left pointing at no pipeline on disk; caught by `git status` after the build.
+
 ## Backlog
 - Stage 6: `ShowRestartButton` as a URL parameter (off by default for real ad networks); decide whether a restart should reset or re-fire `GameEnd`.
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
 - Camera smoothing (the rigid follow is the reference's; shake itself is done).
-- Web build: disable Physics/Physics2D modules (stage 7).
+- Web build, separate PR: remove URP and the unused 2D template packages from the manifest, built-in pipeline permanently (5.5 MB measured on a copy with full exceptions, ~5 MB expected). Physics/Terrain modules are only forced by URP core.
 - Bots steer round bodies (the reference does not); would make the arena livelier and the 'SO CLOSE' end rarer (stage 6 if wanted).
 - Surface the victim knobs (`VictimDelaySeconds`, loiter distance, speed ramp) in the URL-parameter overrides (stage 6).
 - Mute hook / volume URL parameter (`JuiceConfig.MasterVolume` is already there), and the Web audio check (stage 6/7).
