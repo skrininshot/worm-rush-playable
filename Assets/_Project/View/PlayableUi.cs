@@ -28,20 +28,22 @@ namespace WormRush.View
         // The UI's own random stream (confetti), apart from the sim's seeded one.
         const int JuiceSeedMask = 0x5549;
 
-        // Length counter (top centre).
+        // Edge elements keep clear of the screen edge: a phone's camera cut-out, rounded corners and home bar
+        // sit in the outer ~50 units, so nothing interactive or readable lives there.
+        // Length counter (top centre): its centre line, from the top edge.
         const int LengthFontSize = 20;
-        const float LengthTop = 26f;
+        const float LengthTop = 74f;
 
-        // "Block their path!" (top centre).
+        // "Block their path!" (top centre), under the counter.
         const int BlockFontSize = 22;
-        const float BlockTop = 62f;
+        const float BlockTop = 112f;
 
-        // Persistent CTA (bottom centre).
-        const int CtaFontSize = 17;
-        const float CtaPadX = 30f;
-        const float CtaHeight = 46f;
-        const float CtaLip = 4f;
-        const float CtaBottom = 18f;
+        // Persistent CTA (bottom centre), 1.5x the first version; CtaBottom is the gap under its lip.
+        const int CtaFontSize = 26;
+        const float CtaPadX = 45f;
+        const float CtaHeight = 69f;
+        const float CtaLip = 6f;
+        const float CtaBottom = 54f;
 
         // Tutorial finger: a hand dragging round a circle with a trail, the label above the circle.
         const int TutorialFontSize = 24;
@@ -65,26 +67,35 @@ namespace WormRush.View
         // Restart button (top right). The hit area is a little bigger than the disc, for a thumb.
         const float RestartHitSize = 44f;
         const float RestartDiscSize = 34f;
-        const float RestartMargin = 10f;       // screen edge to the hit area
+        const float RestartMarginSide = 22f;   // screen edge to the hit area
+        const float RestartMarginTop = 52f;    // level with the length counter, clear of the camera cut-out
         const float RestartSpinSeconds = 0.45f;
         const float RestartSpinDegrees = 360f; // clockwise, eased out
         const float RestartPressScale = 0.82f; // the disc dips to this on a press and comes back
 
         // End card.
-        const int EndTitleFontSize = 44;
-        const int EndSubtitleFontSize = 18;
-        const int EndButtonFontSize = 24;
-        const float EndTitleY = 67f;
-        const float EndSubtitleY = 8f;
-        const float EndButtonY = -63f;
-        const float EndSubtitleWidth = 320f;
-        const float EndSubtitleHeight = 48f;
+        // Title and button are ~1.4x the first version. The title shrinks to fit when the line is wider than
+        // the screen less EndSideMargin on each side (NICE MOVES! is the long one).
+        const int EndTitleFontSize = 62;
+        const int EndTitleMinFontSize = 24;
+        const int EndTitleWrapBelowFontSize = 55; // 1.25x the first version: a title that would shrink below this wraps
+        const float TitleLineHeight = 1.02f;   // of the font size
+        const int EndSubtitleFontSize = 20;
+        const int EndButtonFontSize = 34;
+        const float EndTitleY = 98f;
+        const float EndSubtitleY = 30f;
+        const float EndButtonY = -62f;
+        const float EndSideMargin = 32f;
+        const float EndSubtitleWidth = 330f;
+        const float EndSubtitleHeight = 56f;
         const float EndSubtitleAlpha = 0.9f;
-        const float EndButtonPadX = 46f;
-        const float EndButtonHeight = 62f;
-        const float EndButtonLip = 5f;
+        const float EndButtonPadX = 62f;
+        const float EndButtonHeight = 86f;
+        const float EndButtonLip = 7f;
         const int MaxTitleLetters = 16;
-        const float LetterBox = 64f;
+        const float LetterBoxFactor = 1.45f;   // of the font size
+        const float TitleShadowNear = -6f;
+        const float TitleShadowFar = -11f;
         const float FallbackAdvance = 0.6f;    // of the font size, when the font has no metrics for a character
 
         // Button light: the beam's colour and how far it travels past the face on each side.
@@ -134,6 +145,10 @@ namespace WormRush.View
         readonly Image _rays;
         readonly Text[] _letters;
         readonly float[] _letterX;
+        float _uiWidth = ReferenceWidth;
+        float _titleCenterY = EndTitleY;
+        float _titleHalfHeight = EndTitleFontSize * 0.6f;
+        readonly float[] _letterY;
         readonly Text _endSubtitle;
         readonly PillButton _endButton;
         readonly RectTransform _restart;
@@ -264,12 +279,14 @@ namespace WormRush.View
             // The title is one Text per letter so each can drop, tilt and ride the wave on its own.
             _letters = new Text[MaxTitleLetters];
             _letterX = new float[MaxTitleLetters];
+            _letterY = new float[MaxTitleLetters];
             for (int i = 0; i < _letters.Length; i++)
             {
                 Text letter = _kit.NewText("Letter", _endCard, "", EndTitleFontSize, Color.white);
-                UiKit.Place(letter.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, EndTitleY), new Vector2(LetterBox, LetterBox));
-                UiKit.AddShadow(letter, config.EndTitleShadowColor, new Vector2(0f, -4f));
-                UiKit.AddShadow(letter, new Color(0f, 0f, 0f, 0.65f), new Vector2(0f, -8f));
+                UiKit.Place(letter.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, EndTitleY),
+                    Vector2.one * (EndTitleFontSize * LetterBoxFactor));
+                UiKit.AddShadow(letter, config.EndTitleShadowColor, new Vector2(0f, TitleShadowNear));
+                UiKit.AddShadow(letter, new Color(0f, 0f, 0f, 0.65f), new Vector2(0f, TitleShadowFar));
                 letter.gameObject.SetActive(false);
                 _letters[i] = letter;
             }
@@ -294,7 +311,7 @@ namespace WormRush.View
             {
                 _restart = UiKit.NewRect("Restart", root);
                 UiKit.Place(_restart, new Vector2(1f, 1f),
-                    new Vector2(-(RestartMargin + RestartHitSize * 0.5f), -(RestartMargin + RestartHitSize * 0.5f)),
+                    new Vector2(-(RestartMarginSide + RestartHitSize * 0.5f), -(RestartMarginTop + RestartHitSize * 0.5f)),
                     Vector2.one * RestartHitSize);
                 Image disc = _kit.NewImage("Disc", _restart, _kit.Circle, config.RestartBackColor);
                 UiKit.Place(disc.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * RestartDiscSize);
@@ -384,6 +401,7 @@ namespace WormRush.View
             _hasTime = true;
 
             float uiHeight = screenHeight / _canvas.scaleFactor;
+            _uiWidth = screenWidth / _canvas.scaleFactor;
             SetAnchor(ref _juice.Cta, 0f, -uiHeight * 0.5f + CtaBottom + CtaHeight * 0.5f, _cta);
 
             int length = Mathf.FloorToInt(sim.Player.Length * 10f);
@@ -544,44 +562,96 @@ namespace WormRush.View
             _endButton.Root.localScale = Vector3.zero;
 
             // The anchors the burst comes out of: where the title and the button sit on this layout.
-            _juice.Title = new UiAnchor { X = 0f, Y = EndTitleY, HalfWidth = _juice.Title.HalfWidth, HalfHeight = EndTitleFontSize * 0.6f };
+            _juice.Title = new UiAnchor { X = 0f, Y = _titleCenterY, HalfWidth = _juice.Title.HalfWidth, HalfHeight = _titleHalfHeight };
             SetAnchor(ref _juice.EndButton, 0f, EndButtonY, _endButton);
             _juice.BeginEndCard(_endWon);
         }
 
-        /// <summary>One Text per character, centred as a line; each remembers its resting x.</summary>
+        /// <summary>
+        /// One Text per character, centred as a line; each remembers its resting x and y. The font shrinks from
+        /// <see cref="EndTitleFontSize"/> until the line fits the screen width less the side margins; a title that
+        /// would have to go below <see cref="EndTitleWrapBelowFontSize"/> breaks at its first space instead.
+        /// </summary>
         void LayOutTitle(string title)
         {
             _letterCount = Mathf.Min(title.Length, _letters.Length);
-            _kit.Font.RequestCharactersInTexture(title, EndTitleFontSize, FontStyle.Bold);
+            float maxWidth = Mathf.Max(1f, _uiWidth - EndSideMargin * 2f);
 
-            float total = 0f;
-            for (int i = 0; i < _letterCount; i++)
+            int size = FitTitle(title, 0, _letterCount, maxWidth);
+            int space = title.IndexOf(' ');
+            bool wrap = size < EndTitleWrapBelowFontSize && space > 0 && space < _letterCount - 1;
+            float halfWidth;
+            if (wrap)
             {
-                float advance = _kit.Font.GetCharacterInfo(title[i], out CharacterInfo info, EndTitleFontSize, FontStyle.Bold)
+                size = Mathf.Min(FitTitle(title, 0, space, maxWidth), FitTitle(title, space + 1, _letterCount, maxWidth));
+                float lineHeight = size * TitleLineHeight;
+                // The lower line sits where a one-line title would, so the subtitle below keeps its distance.
+                float a = PlaceTitleLine(title, 0, space, size, lineHeight);
+                float b = PlaceTitleLine(title, space + 1, _letterCount, size, 0f);
+                _letterX[space] = 0f;
+                _letterY[space] = 0f;
+                halfWidth = Mathf.Max(a, b) * 0.5f;
+                _titleCenterY = EndTitleY + lineHeight * 0.5f;
+                _titleHalfHeight = lineHeight * 1.1f;
+            }
+            else
+            {
+                halfWidth = PlaceTitleLine(title, 0, _letterCount, size, 0f) * 0.5f;
+                _titleCenterY = EndTitleY;
+                _titleHalfHeight = size * 0.6f;
+            }
+
+            for (int i = 0; i < _letters.Length; i++)
+            {
+                bool used = i < _letterCount;
+                _letters[i].gameObject.SetActive(used);
+                if (!used) continue;
+                _letters[i].fontSize = size;
+                _letters[i].text = title[i] == ' ' ? string.Empty : title[i].ToString();
+            }
+
+            _juice.Title = new UiAnchor { HalfWidth = halfWidth };
+        }
+
+        /// <summary>The largest font size, at most <see cref="EndTitleFontSize"/>, at which these characters fit the width.</summary>
+        int FitTitle(string title, int from, int to, float maxWidth)
+        {
+            float total = MeasureTitle(title, from, to, EndTitleFontSize);
+            if (total <= maxWidth) return EndTitleFontSize;
+            return Mathf.Max(EndTitleMinFontSize, Mathf.FloorToInt(EndTitleFontSize * maxWidth / total));
+        }
+
+        /// <summary>Centres one line of the title at height <paramref name="y"/>; returns its width.</summary>
+        float PlaceTitleLine(string title, int from, int to, int size, float y)
+        {
+            float total = MeasureTitle(title, from, to, size);
+            float x = -total * 0.5f;
+            for (int i = from; i < to; i++)
+            {
+                float advance = _letterX[i];
+                _letterX[i] = x + advance * 0.5f;
+                _letterY[i] = y;
+                x += advance;
+            }
+
+            return total;
+        }
+
+        /// <summary>Width of title[from..to) at this font size; leaves each character's advance in <c>_letterX</c>.</summary>
+        float MeasureTitle(string title, int from, int to, int size)
+        {
+            _kit.Font.RequestCharactersInTexture(title, size, FontStyle.Bold);
+            float total = 0f;
+            for (int i = from; i < to; i++)
+            {
+                float advance = _kit.Font.GetCharacterInfo(title[i], out CharacterInfo info, size, FontStyle.Bold)
                     ? info.advance
-                    : EndTitleFontSize * FallbackAdvance;
+                    : size * FallbackAdvance;
                 _letterX[i] = advance;
                 total += advance;
             }
 
-            float x = -total * 0.5f;
-            for (int i = 0; i < _letters.Length; i++)
-            {
-                if (i >= _letterCount)
-                {
-                    _letters[i].gameObject.SetActive(false);
-                    continue;
-                }
-
-                float advance = _letterX[i];
-                _letterX[i] = x + advance * 0.5f;
-                x += advance;
-                _letters[i].text = title[i] == ' ' ? string.Empty : title[i].ToString();
-                _letters[i].gameObject.SetActive(true);
-            }
-
-            _juice.Title = new UiAnchor { HalfWidth = total * 0.5f };
+            return total;
         }
 
         /// <summary>The end card, a pose at a time: veil, rays, letters, subtitle, button, flash.</summary>
@@ -602,7 +672,7 @@ namespace WormRush.View
             {
                 _juice.LetterPose(i, out LetterPose pose);
                 RectTransform rect = _letters[i].rectTransform;
-                rect.anchoredPosition = new Vector2(_letterX[i], EndTitleY + pose.Y);
+                rect.anchoredPosition = new Vector2(_letterX[i], EndTitleY + _letterY[i] + pose.Y);
                 rect.localRotation = Quaternion.Euler(0f, 0f, pose.Rotation);
                 rect.localScale = Vector3.one * pose.Scale;
                 Color color = Color.Lerp(Color.white, _config.HintColor, pose.Gold);

@@ -138,6 +138,12 @@ Done: a round icon button in the top-right corner (34 UI units disc, 44 hit area
 Decisions: it is a config switch, not a build flag, so a hosted demo and an ad-network build differ only by one value (stage 6 can expose it as a URL parameter). `IAdNetwork.GameEnd` fires again at the end of every run, as `NewRun` resets `_endReported`: right for a demo, wrong for a real network, which is the reason to switch the button off there.
 Known issues / TODO: not tapped on a device (touch hit size 44 units is the usual minimum); checked in the render check at 540x960 and 1080x1920 (play and end card), compile clean, no Core change (143 tests green).
 
+### Stage 5, review round 7 — UI off the edges, bigger buttons (same PR)
+Feedback: edge elements too close to the screen edge; PLAY NOW on the play screen ~1.5x bigger and higher; the score under the phone's camera; SO CLOSE / AWESOME and the end PLAY NOW 1.25-1.5x bigger without touching the edge.
+Done (all in `PlayableUi`, UI units of the 390x844 layout): length counter centre 26 -> 74 from the top, "Block their path!" 62 -> 112, restart button 10 -> 22 from the side and 52 from the top (level with the counter). Persistent CTA 1.5x (font 17 -> 26, height 46 -> 69, pad 30 -> 45) and 18 -> 54 off the bottom. End card: title font 44 -> 62, button font 24 -> 34 / height 62 -> 86 / pad 46 -> 62, subtitle 18 -> 20 in a 330 box; the stack was re-spaced (title y 98, subtitle 30, button -62).
+Decisions: the title fits the screen: it shrinks until it clears `EndSideMargin` (32) on each side; if that would be below 55 (1.25x the old 44) and it has a space, it breaks into two lines instead (NICE MOVES! -> NICE / MOVES!, the lower line where the one-line title sat). Fixed offsets, not `Screen.safeArea`: the render check and the Web build have no reliable safe area, and ~50 units is clear of every cut-out in use.
+Known issues / TODO: not seen on a device; if the camera still clips the counter on some phone, raise `LengthTop` and `RestartMarginTop`. Checked in the render check at 468x1013 (play, SO CLOSE, NICE MOVES! with a temporary title), compile clean, no Core change.
+
 ## Backlog
 - Stage 6: `ShowRestartButton` as a URL parameter (off by default for real ad networks); decide whether a restart should reset or re-fire `GameEnd`.
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
