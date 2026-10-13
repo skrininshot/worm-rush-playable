@@ -49,14 +49,17 @@ namespace WormRush.Config
         public string EndButtonText = "PLAY NOW";
 
         [Header("UI colours")]
-        public Color CtaTopColor = new Color32(0xff, 0xd2, 0x3f, 0xff);
-        public Color CtaBottomColor = new Color32(0xff, 0x9f, 0x1c, 0xff);
-        public Color CtaEdgeColor = new Color32(0xb8, 0x6a, 0x00, 0xff);
-        public Color CtaTextColor = new Color32(0x3a, 0x1c, 0x00, 0xff);
-        public Color EndButtonTopColor = new Color32(0x3e, 0xe6, 0xa8, 0xff);
-        public Color EndButtonBottomColor = new Color32(0x18, 0xb4, 0x7f, 0xff);
-        public Color EndButtonEdgeColor = new Color32(0x0b, 0x7a, 0x54, 0xff);
-        public Color EndButtonTextColor = new Color32(0x03, 0x26, 0x1a, 0xff);
+        [Tooltip("PLAY NOW buttons: lime gradient, white label with a dark outline (yellow with dark text read flat).")]
+        public Color CtaTopColor = new Color32(0x8a, 0xf5, 0x3c, 0xff);
+        public Color CtaBottomColor = new Color32(0x1f, 0xb8, 0x2d, 0xff);
+        public Color CtaEdgeColor = new Color32(0x0b, 0x6a, 0x1b, 0xff);
+        public Color CtaTextColor = Color.white;
+        public Color CtaTextOutlineColor = new Color32(0x0a, 0x4d, 0x18, 0xff);
+        public Color EndButtonTopColor = new Color32(0x8a, 0xf5, 0x3c, 0xff);
+        public Color EndButtonBottomColor = new Color32(0x1f, 0xb8, 0x2d, 0xff);
+        public Color EndButtonEdgeColor = new Color32(0x0b, 0x6a, 0x1b, 0xff);
+        public Color EndButtonTextColor = Color.white;
+        public Color EndButtonTextOutlineColor = new Color32(0x0a, 0x4d, 0x18, 0xff);
         public Color EndDimColor = new Color32(0x08, 0x0c, 0x1c, 0xc7);
         public Color EndTitleShadowColor = new Color32(0xff, 0x5d, 0x8f, 0xff);
         public Color HintColor = new Color32(0xff, 0xd2, 0x3f, 0xff);

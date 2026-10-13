@@ -46,6 +46,17 @@ namespace WormRush.View
         const float BeamWidthFactor = 0.22f;    // light beam relative to the face
         const float BeamHeightFactor = 2.2f;
         const float BeamTiltDegrees = 20f;
+        const float GlossAlpha = 0.2f;          // lighter top half of a button face
+
+        // The pointing hand: its own cell, painted in colour (white skin, dark outline), tip position in texels from the cell centre.
+        const int HandCellSize = 128;
+        const int HandCellX = 256;
+        const float HandOutline = 3.5f;
+        const float HandBlend = 8f;             // smooth-union radius between finger, fist and thumb
+        public const float HandTipX = -6f;
+        public const float HandTipY = 45.5f + HandOutline;
+        public const float HandCell = HandCellSize;
+        static readonly Color32 HandOutlineColor = new Color32(0x1c, 0x20, 0x40, 0xff);
 
         public readonly Font Font;
         public readonly Sprite Circle;
@@ -56,6 +67,7 @@ namespace WormRush.View
         public readonly Sprite Glow;
         public readonly Sprite Beam;
         public readonly Sprite Rays;
+        public readonly Sprite Hand;
 
         readonly List<Object> _owned = new List<Object>();
 
@@ -98,6 +110,8 @@ namespace WormRush.View
                 return lobe * Mathf.Pow(Mathf.Clamp01(1f - r / raysHalf), RayFadePower);
             });
 
+            Rect hand = PaintHand(pixels, HandCellX, 0);
+
             atlas.SetPixels32(pixels);
             atlas.Apply(false, true);
             _owned.Add(atlas);
@@ -111,6 +125,7 @@ namespace WormRush.View
             Beam = MakeSprite(atlas, beam, Vector4.zero);
             Square = MakeSprite(atlas, square, Vector4.zero);
             Rays = MakeSprite(atlas, rays, Vector4.zero);
+            Hand = MakeSprite(atlas, hand, Vector4.zero);
         }
 
         static Font LoadFont()
@@ -150,6 +165,112 @@ namespace WormRush.View
             }
 
             return new Rect(originX, originY, size, size);
+        }
+
+        /// <summary>
+        /// A hand with the index finger raised (a pointing cursor), painted as layers back to front: finger and palm
+        /// as one smooth shape, three curled fingers, the thumb. Every layer has its own dark outline, so the
+        /// fingers read as separate. Signed distances keep the edges anti-aliased and the outline an exact offset.
+        /// Transparent outside, but dark, so bilinear sampling leaves no pale halo.
+        /// </summary>
+        static Rect PaintHand(Color32[] pixels, int originX, int originY)
+        {
+            float centre = (HandCellSize - 1) * 0.5f;
+            for (int y = 0; y < HandCellSize; y++)
+            {
+                for (int x = 0; x < HandCellSize; x++)
+                {
+                    float px = x - centre;
+                    float py = y - centre;
+
+                    // Premultiplied accumulation of (outline, skin) pairs, back to front.
+                    float red = 0f;
+                    float green = 0f;
+                    float blue = 0f;
+                    float alpha = 0f;
+                    for (int layer = 0; layer < HandLayers; layer++)
+                    {
+                        float d = HandLayerDistance(layer, px, py);
+                        Over(ref red, ref green, ref blue, ref alpha, HandOutlineColor.r / 255f, HandOutlineColor.g / 255f,
+                            HandOutlineColor.b / 255f, Mathf.Clamp01(0.5f - (d - HandOutline)));
+                        Over(ref red, ref green, ref blue, ref alpha, 1f, 1f, 1f, Mathf.Clamp01(0.5f - d));
+                    }
+
+                    float inverse = alpha > 1e-4f ? 1f / alpha : 0f;
+                    Color32 outline = HandOutlineColor;
+                    byte r = alpha > 1e-4f ? (byte)Mathf.RoundToInt(red * inverse * 255f) : outline.r;
+                    byte g = alpha > 1e-4f ? (byte)Mathf.RoundToInt(green * inverse * 255f) : outline.g;
+                    byte b = alpha > 1e-4f ? (byte)Mathf.RoundToInt(blue * inverse * 255f) : outline.b;
+                    pixels[(originY + y) * AtlasSize + originX + x] = new Color32(r, g, b, (byte)Mathf.RoundToInt(alpha * 255f));
+                }
+            }
+
+            return new Rect(originX, originY, HandCellSize, HandCellSize);
+        }
+
+        static void Over(ref float red, ref float green, ref float blue, ref float alpha, float r, float g, float b, float a)
+        {
+            red = red * (1f - a) + r * a;
+            green = green * (1f - a) + g * a;
+            blue = blue * (1f - a) + b * a;
+            alpha = alpha * (1f - a) + a;
+        }
+
+        const int HandLayers = 5;
+
+        static float HandLayerDistance(int layer, float x, float y)
+        {
+            switch (layer)
+            {
+                case 0:
+                {
+                    float finger = CapsuleDistance(x, y, HandTipX, -4f, HandTipX, HandTipY - HandOutline - 9.5f, 9.5f);
+                    float palm = BoxDistance(x, y, 4f, -24f, 27f, 24f, 13f);
+                    return SmoothMin(finger, palm, HandBlend);
+                }
+                case 1:
+                    return CircleDistance(x, y, 31f, -9f, 7.5f);
+                case 2:
+                    return CircleDistance(x, y, 22f, -4f, 8f);
+                case 3:
+                    return CircleDistance(x, y, 12.5f, -1f, 8f);
+                default:
+                    return CapsuleDistance(x, y, -25f, -11f, -14f, -22f, 7.5f);
+            }
+        }
+
+        static float CircleDistance(float x, float y, float cx, float cy, float r)
+        {
+            float dx = x - cx;
+            float dy = y - cy;
+            return Mathf.Sqrt(dx * dx + dy * dy) - r;
+        }
+
+        static float CapsuleDistance(float x, float y, float ax, float ay, float bx, float by, float r)
+        {
+            float pax = x - ax;
+            float pay = y - ay;
+            float bax = bx - ax;
+            float bay = by - ay;
+            float h = Mathf.Clamp01((pax * bax + pay * bay) / (bax * bax + bay * bay));
+            float dx = pax - bax * h;
+            float dy = pay - bay * h;
+            return Mathf.Sqrt(dx * dx + dy * dy) - r;
+        }
+
+        static float BoxDistance(float x, float y, float cx, float cy, float halfX, float halfY, float r)
+        {
+            float qx = Mathf.Abs(x - cx) - (halfX - r);
+            float qy = Mathf.Abs(y - cy) - (halfY - r);
+            float ox = Mathf.Max(qx, 0f);
+            float oy = Mathf.Max(qy, 0f);
+            return Mathf.Sqrt(ox * ox + oy * oy) + Mathf.Min(Mathf.Max(qx, qy), 0f) - r;
+        }
+
+        static float SmoothMin(float a, float b, float k)
+        {
+            float h = Mathf.Max(k - Mathf.Abs(a - b), 0f) / k;
+            return Mathf.Min(a, b) - h * h * k * 0.25f;
         }
 
         Sprite MakeSprite(Texture2D atlas, Rect rect, Vector4 border)
@@ -260,6 +381,13 @@ namespace WormRush.View
             // The beam only shows inside the face's shape (stencil mask from the face's own alpha).
             Mask mask = face.gameObject.AddComponent<Mask>();
             mask.showMaskGraphic = true;
+
+            // Gloss: the top half a little lighter, clipped to the pill by the same mask.
+            Image gloss = NewImage("Gloss", face.rectTransform, Square, new Color(1f, 1f, 1f, GlossAlpha));
+            gloss.rectTransform.anchorMin = new Vector2(0f, 0.5f);
+            gloss.rectTransform.anchorMax = Vector2.one;
+            gloss.rectTransform.offsetMin = Vector2.zero;
+            gloss.rectTransform.offsetMax = Vector2.zero;
             Image beam = NewImage("Shine", face.rectTransform, Beam, shine);
             Place(beam.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(width * BeamWidthFactor, height * BeamHeightFactor));

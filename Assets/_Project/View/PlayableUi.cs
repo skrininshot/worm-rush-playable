@@ -43,17 +43,24 @@ namespace WormRush.View
         const float CtaLip = 4f;
         const float CtaBottom = 18f;
 
-        // Tutorial hand: a track, a dot sliding along it, the label above.
+        // Tutorial finger: a hand dragging round a circle with a trail, the label above the circle.
         const int TutorialFontSize = 24;
-        const float TutorialAnchorY = 0.28f;   // of screen height, from the bottom
-        const float TutorialTrackHalf = 70f;
-        const float TutorialTrackThickness = 4f;
-        const float TutorialLabelOffset = 44f;
-        const float TutorialDotRadius = 18f;
-        const float TutorialDotPulse = 3f;
-        const float TutorialSlideSpeed = 2.5f;
-        const float TutorialPulseSpeed = 5f;
-        const float TutorialTrackAlpha = 0.5f;
+        const float TutorialAnchorY = 0.34f;   // of screen height, from the bottom: the circle's centre
+        const float TutorialLabelGap = 44f;    // label sits this far above the top of the circle
+        const float TutorialHandSize = 110f;   // the hand sprite's box, UI units
+        const float TutorialTiltDegrees = 9f;  // the hand leans with its sideways position, for a little life
+        const float TutorialShadowUpX = 12f;   // shadow offset while hovering ...
+        const float TutorialShadowUpY = -16f;
+        const float TutorialShadowDownX = 3f;  // ... and while pressed
+        const float TutorialShadowDownY = -4f;
+        const float TutorialShadowAlpha = 0.4f;
+        const float TutorialTouchSize = 74f;   // soft light under the fingertip
+        const float TutorialTouchAlpha = 0.45f;
+        const float TutorialRingStart = 0.3f;  // ripple: grows from this fraction of its size to TutorialRingEnd
+        const float TutorialRingEnd = 1.15f;
+        const float TutorialDotMin = 8f;
+        const float TutorialDotMax = 24f;
+        const float TutorialTrailAlpha = 0.6f;
 
         // End card.
         const int EndTitleFontSize = 44;
@@ -77,6 +84,11 @@ namespace WormRush.View
         const float ShineTravelPad = 0.2f;     // of the button width
 
         const float OutlineDistance = 2.5f;
+        // Button labels: white with a dark outline and a drop, so they pop off the gradient.
+        const float ButtonTextOutline = 2f;
+        const float EndButtonTextOutline = 3f;
+        const float ButtonTextDrop = 1.5f;
+        const float EndButtonTextDrop = 2f;
 
         // World popups ("+1 KILL!", "+3"): the Text is rasterised at this size and scaled to match the world, so a
         // zooming camera never makes the font atlas regenerate. The outline follows the reference (5 px on 26).
@@ -100,7 +112,14 @@ namespace WormRush.View
         readonly PillButton _cta;
         readonly RectTransform _tutorial;
         readonly CanvasGroup _tutorialGroup;
-        readonly RectTransform _tutorialDot;
+        readonly RectTransform _tutorialHand;
+        readonly RectTransform _tutorialShadow;
+        readonly Image _tutorialHandImage;
+        readonly Image _tutorialShadowImage;
+        readonly Image _tutorialTouch;
+        readonly Image _tutorialRing;
+        readonly Image[] _tutorialTrail;
+        readonly TutorialGesture _gesture;
         readonly RectTransform _endCard;
         readonly Image _dim;
         readonly Image _flash;
@@ -122,6 +141,8 @@ namespace WormRush.View
         bool _endWon;
         bool _hintShown;
         float _hintShownAt;
+        bool _tutorialShown;
+        float _tutorialShownAt;
         float _lastTime;
         bool _hasTime;
         Vector2 _pointer;
@@ -173,28 +194,52 @@ namespace WormRush.View
             UiKit.Place(_blockHint.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -BlockTop), new Vector2(360f, 30f));
             UiKit.AddOutline(_blockHint, stroke, OutlineDistance);
 
-            // Tutorial hand.
+            // Tutorial finger. Children are in draw order: label, trail, touch light, ripple, hand shadow, hand.
+            _gesture = new TutorialGesture(config.UiJuice);
             _tutorial = UiKit.NewRect("Tutorial", root);
             UiKit.Place(_tutorial, new Vector2(0.5f, TutorialAnchorY), Vector2.zero, Vector2.zero);
             _tutorialGroup = _tutorial.gameObject.AddComponent<CanvasGroup>();
             _tutorialGroup.interactable = false;
             _tutorialGroup.blocksRaycasts = false;
-            Image track = _kit.NewImage("Track", _tutorial, _kit.Square, new Color(1f, 1f, 1f, TutorialTrackAlpha));
-            UiKit.Place(track.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(TutorialTrackHalf * 2f, TutorialTrackThickness));
-            Image dot = _kit.NewImage("Dot", _tutorial, _kit.Circle, Color.white);
-            _tutorialDot = dot.rectTransform;
-            UiKit.Place(_tutorialDot, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * TutorialDotRadius * 2f);
+
             Text tutorialLabel = _kit.NewText("Label", _tutorial, config.TutorialText, TutorialFontSize, Color.white);
-            UiKit.Place(tutorialLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, TutorialLabelOffset),
-                new Vector2(360f, 34f));
+            UiKit.Place(tutorialLabel.rectTransform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, config.UiJuice.TutorialRadius + TutorialLabelGap), new Vector2(360f, 34f));
             UiKit.AddOutline(tutorialLabel, stroke, OutlineDistance);
+
+            _tutorialTrail = new Image[_gesture.TrailDots];
+            for (int i = 0; i < _tutorialTrail.Length; i++)
+            {
+                Image dot = _kit.NewImage("Trail", _tutorial, _kit.Circle, Color.white);
+                UiKit.Place(dot.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * TutorialDotMax);
+                _tutorialTrail[i] = dot;
+            }
+
+            _tutorialTouch = _kit.NewImage("Touch", _tutorial, _kit.Glow, Color.white);
+            UiKit.Place(_tutorialTouch.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * TutorialTouchSize);
+            _tutorialRing = _kit.NewImage("Ripple", _tutorial, _kit.Ring, Color.white);
+            UiKit.Place(_tutorialRing.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                Vector2.one * config.UiJuice.TutorialRingSize);
+
+            _tutorialShadowImage = _kit.NewImage("HandShadow", _tutorial, _kit.Hand, new Color(0f, 0f, 0f, TutorialShadowAlpha));
+            _tutorialShadow = _tutorialShadowImage.rectTransform;
+            _tutorialHandImage = _kit.NewImage("Hand", _tutorial, _kit.Hand, Color.white);
+            _tutorialHand = _tutorialHandImage.rectTransform;
+            // The fingertip is the pivot, so position, scale and tilt all happen at the point that touches.
+            Vector2 tipPivot = new Vector2(0.5f + UiKit.HandTipX / UiKit.HandCell, 0.5f + UiKit.HandTipY / UiKit.HandCell);
+            UiKit.Place(_tutorialShadow, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * TutorialHandSize);
+            _tutorialShadow.pivot = tipPivot;
+            UiKit.Place(_tutorialHand, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * TutorialHandSize);
+            _tutorialHand.pivot = tipPivot;
 
             // Persistent CTA.
             _cta = _kit.NewPillButton("Cta", root, config.CtaText, CtaFontSize, CtaPadX, CtaHeight,
                 config.CtaTopColor, config.CtaBottomColor, config.CtaEdgeColor, config.CtaTextColor, CtaLip,
                 config.CtaTopColor, shine);
             UiKit.Place(_cta.Root, new Vector2(0.5f, 0f), new Vector2(0f, CtaBottom + CtaHeight * 0.5f), _cta.Root.sizeDelta);
+            // The drop goes first so the outline wraps it too: one solid, extruded edge under the letters.
+            UiKit.AddShadow(_cta.Label, config.CtaTextOutlineColor, new Vector2(0f, -ButtonTextDrop));
+            UiKit.AddOutline(_cta.Label, config.CtaTextOutlineColor, ButtonTextOutline);
 
             // End card.
             _endCard = UiKit.NewRect("EndCard", root);
@@ -229,6 +274,8 @@ namespace WormRush.View
                 EndButtonPadX, EndButtonHeight, config.EndButtonTopColor, config.EndButtonBottomColor,
                 config.EndButtonEdgeColor, config.EndButtonTextColor, EndButtonLip, config.EndButtonTopColor, shine);
             UiKit.Place(_endButton.Root, new Vector2(0.5f, 0.5f), new Vector2(0f, EndButtonY), _endButton.Root.sizeDelta);
+            UiKit.AddShadow(_endButton.Label, config.EndButtonTextOutlineColor, new Vector2(0f, -EndButtonTextDrop));
+            UiKit.AddOutline(_endButton.Label, config.EndButtonTextOutlineColor, EndButtonTextOutline);
 
             _flash = _kit.NewImage("Flash", _endCard, _kit.Square, new Color(1f, 1f, 1f, 0f));
             UiKit.Stretch(_flash.rectTransform);
@@ -342,8 +389,10 @@ namespace WormRush.View
             if (hintVisible) _blockHint.rectTransform.localScale = Vector3.one * _juice.HintScale(time - _hintShownAt, time);
 
             bool tutorial = flow.TutorialVisible;
+            if (tutorial && !_tutorialShown) _tutorialShownAt = time;
+            _tutorialShown = tutorial;
             _tutorial.gameObject.SetActive(tutorial);
-            if (tutorial) AnimateTutorial(flow.TutorialAlpha, sim.Time);
+            if (tutorial) AnimateTutorial(flow.TutorialAlpha, time - _tutorialShownAt);
 
             if (end) AnimateEndCard();
             PresentFx();
@@ -357,13 +406,61 @@ namespace WormRush.View
             anchor.HalfHeight = button.Height * 0.5f;
         }
 
-        void AnimateTutorial(float alpha, float simTime)
+        /// <summary>The finger's loop at <paramref name="seconds"/> since the hint appeared: trail, touch light, ripple, hand.</summary>
+        void AnimateTutorial(float alpha, float seconds)
         {
             _tutorialGroup.alpha = alpha;
-            float x = Mathf.Sin(simTime * TutorialSlideSpeed) * TutorialTrackHalf;
-            float radius = TutorialDotRadius + Mathf.Sin(simTime * TutorialPulseSpeed) * TutorialDotPulse;
-            _tutorialDot.anchoredPosition = new Vector2(x, 0f);
-            _tutorialDot.sizeDelta = Vector2.one * radius * 2f;
+            _gesture.Sample(seconds, out HandPose pose);
+
+            for (int i = 0; i < _tutorialTrail.Length; i++)
+            {
+                Image dot = _tutorialTrail[i];
+                float x = 0f;
+                float y = 0f;
+                float strength = 0f;
+                bool shown = pose.TrailFade > 0f && _gesture.TrailPoint(seconds, i, out x, out y, out strength);
+                if (!shown)
+                {
+                    if (dot.gameObject.activeSelf) dot.gameObject.SetActive(false);
+                    continue;
+                }
+
+                dot.rectTransform.anchoredPosition = new Vector2(x, y);
+                dot.rectTransform.sizeDelta = Vector2.one * Mathf.Lerp(TutorialDotMin, TutorialDotMax, strength);
+                dot.color = new Color(1f, 1f, 1f, TutorialTrailAlpha * strength * pose.TrailFade);
+                if (!dot.gameObject.activeSelf) dot.gameObject.SetActive(true);
+            }
+
+            Vector2 tip = new Vector2(pose.X, pose.Y);
+            _tutorialTouch.rectTransform.anchoredPosition = tip;
+            _tutorialTouch.color = new Color(1f, 1f, 1f, TutorialTouchAlpha * pose.Press * pose.Alpha);
+
+            bool ring = pose.Ring >= 0f;
+            if (_tutorialRing.gameObject.activeSelf != ring) _tutorialRing.gameObject.SetActive(ring);
+            if (ring)
+            {
+                _tutorialRing.rectTransform.anchoredPosition = tip;
+                _tutorialRing.rectTransform.localScale =
+                    Vector3.one * Mathf.Lerp(TutorialRingStart, TutorialRingEnd, UiMotion.EaseOut(pose.Ring));
+                _tutorialRing.color = new Color(1f, 1f, 1f, 1f - pose.Ring);
+            }
+
+            // Hovering, the shadow sits far off; pressed, it tucks in under the finger.
+            Vector2 shadowOffset = Vector2.Lerp(new Vector2(TutorialShadowUpX, TutorialShadowUpY),
+                new Vector2(TutorialShadowDownX, TutorialShadowDownY), pose.Press);
+            float lean = -pose.X / Mathf.Max(1f, _config.UiJuice.TutorialRadius) * TutorialTiltDegrees;
+            Quaternion tilt = Quaternion.Euler(0f, 0f, lean);
+            Vector3 scale = Vector3.one * pose.Scale;
+
+            _tutorialHand.anchoredPosition = tip;
+            _tutorialHand.localScale = scale;
+            _tutorialHand.localRotation = tilt;
+            _tutorialHandImage.color = new Color(1f, 1f, 1f, pose.Alpha);
+
+            _tutorialShadow.anchoredPosition = tip + shadowOffset;
+            _tutorialShadow.localScale = scale;
+            _tutorialShadow.localRotation = tilt;
+            _tutorialShadowImage.color = new Color(0f, 0f, 0f, TutorialShadowAlpha * pose.Alpha);
         }
 
         void ShowEndCard(EndKind kind)
