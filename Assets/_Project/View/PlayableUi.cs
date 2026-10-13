@@ -71,6 +71,13 @@ namespace WormRush.View
 
         const float OutlineDistance = 2.5f;
 
+        // World popups ("+1 KILL!", "+3"): the Text is rasterised at this size and scaled to match the world, so a
+        // zooming camera never makes the font atlas regenerate. The outline follows the reference (5 px on 26).
+        const int PopupRasterFontSize = 48;
+        const float PopupOutlineFraction = 0.1f;
+        const float PopupBoxWidth = 360f;
+        const float PopupBoxHeight = 64f;
+
         readonly PlayableConfig _config;
         readonly Camera _camera;
         readonly UiKit _kit;
@@ -87,6 +94,9 @@ namespace WormRush.View
         readonly Text _endTitle;
         readonly Text _endSubtitle;
         readonly RectTransform _endButton;
+
+        readonly Text[] _popups;
+        readonly int[] _popupKeys;
 
         int _lastLength = -1;
         bool _endShown;
@@ -115,7 +125,20 @@ namespace WormRush.View
             Color shadow = new Color(0f, 0f, 0f, 0.7f);
             Color stroke = Color.black;
 
-            _length = _kit.NewText("Length", root, "", LengthFontSize, Color.white);
+            // World popups first, so every HUD element and the end card draw on top of them.
+            int popupCount = Mathf.Max(1, config.Juice.PopupCapacity);
+            _popups = new Text[popupCount];
+            _popupKeys = new int[popupCount];
+            for (int i = 0; i < popupCount; i++)
+            {
+                Text popup = _kit.NewText("Popup", root, "", PopupRasterFontSize, Color.white);
+                UiKit.Place(popup.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(PopupBoxWidth, PopupBoxHeight));
+                UiKit.AddOutline(popup, config.PopupOutlineColor, PopupRasterFontSize * PopupOutlineFraction);
+                popup.gameObject.SetActive(false);
+                _popups[i] = popup;
+            }
+
+            _length =_kit.NewText("Length", root, "", LengthFontSize, Color.white);
             UiKit.Place(_length.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -LengthTop), new Vector2(240f, 30f));
             UiKit.AddShadow(_length, shadow, new Vector2(0f, -2f));
 
@@ -190,7 +213,7 @@ namespace WormRush.View
         /// </summary>
         public void Present(PlayableFlow flow, WormSim sim, float time, float screenWidth, float screenHeight)
         {
-            _canvas.scaleFactor = ViewMath.UiScale(screenWidth, screenHeight, ReferenceWidth, ReferenceHeight, MatchWidthOrHeight);
+            _canvas.scaleFactor = ScaleFor(screenWidth, screenHeight);
 
             int length = Mathf.FloorToInt(sim.Player.Length * 10f);
             if (length != _lastLength)
@@ -200,6 +223,7 @@ namespace WormRush.View
             }
 
             _cta.gameObject.SetActive(flow.CtaVisible);
+            if (flow.CtaVisible) _cta.localScale = Vector3.one * Pulse(time, _config.CtaPulseSeconds, _config.CtaPulseAmount);
             _blockHint.gameObject.SetActive(flow.BlockHintVisible);
 
             bool tutorial = flow.TutorialVisible;
@@ -258,9 +282,65 @@ namespace WormRush.View
             color.a = EaseOut(t);
             _endTitle.color = color;
 
-            float phase = Mathf.Repeat(elapsed / EndPulseSeconds, 1f);
-            float pulse = 1f + EndPulseAmount * (0.5f - 0.5f * Mathf.Cos(phase * Mathf.PI * 2f));
-            _endButton.localScale = Vector3.one * pulse;
+            _endButton.localScale = Vector3.one * Pulse(elapsed, EndPulseSeconds, EndPulseAmount);
+        }
+
+        /// <summary>Scale that eases from 1 up to 1 + amount and back once per period (the reference's CSS pulse).</summary>
+        static float Pulse(float time, float period, float amount)
+        {
+            if (period <= 0f || amount == 0f) return 1f;
+            float phase = Mathf.Repeat(time / period, 1f);
+            return 1f + amount * (0.5f - 0.5f * Mathf.Cos(phase * Mathf.PI * 2f));
+        }
+
+        /// <summary>UI units to pixels for a render target of this size.</summary>
+        public static float ScaleFor(float screenWidth, float screenHeight)
+        {
+            return ViewMath.UiScale(screenWidth, screenHeight, ReferenceWidth, ReferenceHeight, MatchWidthOrHeight);
+        }
+
+        /// <summary>
+        /// Puts the juice popups over the world, at the world position they were spawned at (after the camera has
+        /// moved this frame). Call after <see cref="Present"/>, which sets the UI scale.
+        /// </summary>
+        public void PresentPopups(JuiceState juice, float screenWidth, float screenHeight)
+        {
+            PopupPool pool = juice.Popups;
+            float uiScale = _canvas.scaleFactor;
+            float pixelsPerWorld = screenHeight / (2f * _camera.orthographicSize);
+            int shown = Mathf.Min(pool.Count, _popups.Length);
+
+            for (int i = 0; i < _popups.Length; i++)
+            {
+                Text text = _popups[i];
+                if (i >= shown)
+                {
+                    if (text.gameObject.activeSelf) text.gameObject.SetActive(false);
+                    continue;
+                }
+
+                ref Popup popup = ref pool.Items[i];
+                int key = (int)popup.Kind * 100000 + popup.Value + 1;
+                if (_popupKeys[i] != key)
+                {
+                    _popupKeys[i] = key;
+                    text.text = popup.Kind == PopupKind.Kill
+                        ? _config.KillPopupText
+                        : string.Format(_config.ValuePopupFormat, popup.Value);
+                }
+
+                Color color = popup.Kind == PopupKind.Kill ? _config.KillPopupColor : _config.ValuePopupColor;
+                color.a *= pool.Alpha(popup);
+                text.color = color;
+
+                Vector3 screen = _camera.WorldToScreenPoint(new Vector3(popup.X, popup.Y, 0f));
+                Vector2 offset = new Vector2(screen.x - screenWidth * 0.5f, screen.y - screenHeight * 0.5f) / uiScale;
+                text.rectTransform.anchoredPosition = offset;
+
+                float pixelSize = _config.Juice.PopupFontSize * popup.Scale * pixelsPerWorld;
+                text.rectTransform.localScale = Vector3.one * (pixelSize / (PopupRasterFontSize * uiScale));
+                if (!text.gameObject.activeSelf) text.gameObject.SetActive(true);
+            }
         }
 
         static float EaseOut(float t)

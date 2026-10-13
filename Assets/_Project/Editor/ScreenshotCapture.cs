@@ -14,9 +14,10 @@ namespace WormRush.EditorTools
     /// saves a PNG. Needs a GPU, so run WITHOUT -nographics:
     ///   Unity -batchmode -quit -projectPath . -executeMethod WormRush.EditorTools.ScreenshotCapture.Run
     ///         -shotPath out.png -shotWidth 540 -shotHeight 960 -shotSeconds 6 -shotSeed 7
-    ///         [-shotHeading 0.6] [-shotViewSpan 480] [-shotState play|tutorial|end] -logFile log.txt
+    ///         [-shotHeading 0.6] [-shotViewSpan 480] [-shotState play|tutorial|end|kill] [-shotAfter 0.25] -logFile log.txt
     /// -shotState: play = tapped, run -shotSeconds, then draw (HUD, "Block their path!" window);
-    ///             tutorial = never tapped (the hand); end = run until the end card shows, then draw it.
+    ///             tutorial = never tapped (the hand); end = run until the end card shows, then draw it;
+    ///             kill = run until the player's first kill, then -shotAfter more seconds (burst, "+1 KILL!", shake).
     /// </summary>
     public static class ScreenshotCapture
     {
@@ -24,6 +25,7 @@ namespace WormRush.EditorTools
         const float StepSeconds = 1f / 60f;
         const float EndSearchSeconds = 60f;   // -shotState end gives up after this much sim time
         const float UiSettleSeconds = 0.8f;   // after the end card pop (0.5 s) and mid-pulse
+        const float KillSearchSeconds = 60f;  // -shotState kill gives up after this much sim time
 
         public static void Run()
         {
@@ -34,6 +36,7 @@ namespace WormRush.EditorTools
             int seed = int.Parse(Arg("-shotSeed", "7"));
             float heading = float.Parse(Arg("-shotHeading", "0.6"), System.Globalization.CultureInfo.InvariantCulture);
             string state = Arg("-shotState", "play");
+            float after = float.Parse(Arg("-shotAfter", "0.25"), System.Globalization.CultureInfo.InvariantCulture);
 
             EditorSceneManager.OpenScene(ScenePath);
             Camera camera = Camera.main;
@@ -54,25 +57,35 @@ namespace WormRush.EditorTools
                 sim.SetPlayerHeading(heading);
             }
 
-            float limit = state == "end" ? EndSearchSeconds : seconds;
+            JuiceState juice = new JuiceState(config.Juice, seed);
+            float limit = state == "end" ? EndSearchSeconds : (state == "kill" ? KillSearchSeconds : seconds);
+            float killedAt = -1f;
             for (float t = 0f; t < limit; t += StepSeconds)
             {
                 sim.Step(StepSeconds);
                 flow.Update();
+                juice.Update(sim, flow, StepSeconds);
                 if (state == "end" && flow.State == FlowState.EndCard) break;
+                if (state == "kill")
+                {
+                    if (killedAt < 0f && flow.Kills > 0) killedAt = t;
+                    if (killedAt >= 0f && t >= killedAt + after) break;
+                }
             }
 
             RenderTexture target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
             camera.targetTexture = target;
             CameraFollow follow = new CameraFollow(camera, config);
-            ViewBounds view = follow.Apply(sim.Player);
-            world.Draw(sim, view);
+            float shakeScale = PlayableUi.ScaleFor(width, height);
+            ViewBounds view = follow.Apply(sim.Player, juice.ShakeX * shakeScale, juice.ShakeY * shakeScale);
+            world.Draw(sim, view, juice);
 
             // The UI the same way the runner drives it. Two Present calls: the end card pop starts at the first
             // and is finished by the second.
             PlayableUi ui = PlayableUi.Create(config, camera);
             ui.Present(flow, sim, 0f, width, height);
             ui.Present(flow, sim, UiSettleSeconds, width, height);
+            ui.PresentPopups(juice, width, height);
             Canvas.ForceUpdateCanvases();
             camera.Render();
 
@@ -85,7 +98,8 @@ namespace WormRush.EditorTools
 
             File.WriteAllBytes(path, image.EncodeToPNG());
             Debug.Log("Screenshot saved: " + path + "  (" + width + "x" + height + ", food " + sim.FoodCount + ", player length " + sim.Player.Length +
-                      ", flow " + flow.State + ", end " + flow.EndKind + "/" + flow.EndReason + ", kills " + flow.Kills + ")");
+                      ", flow " + flow.State + ", end " + flow.EndKind + "/" + flow.EndReason + ", kills " + flow.Kills +
+                      ", particles " + juice.Particles.Count + ", popups " + juice.Popups.Count + ", shake " + juice.ShakeRemaining.ToString("F2") + ")");
             ui.Dispose();
             world.Dispose();
         }

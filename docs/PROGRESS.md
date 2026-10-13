@@ -6,7 +6,8 @@ Short handoff for the next session. Keep each entry under ~15 lines.
 - Stage **1 — Core simulation**: merged (PR #1).
 - Stage **2 — View + controls**: merged (PR #2).
 - Stage **3 — Bots + collisions**: merged (PR #3).
-- Stage **4 — Flow + end card**: PR open, waiting for the user's review/merge. `dotnet test CoreTests` green (81/81), Unity compile headless exit 0, render check done for tutorial / play / end card (portrait) and tutorial (landscape). Next: stage 5, only when the user says `/stage 5`.
+- Stage **4 — Flow + end card**: merged (PR #4).
+- Stage **5 — Juice**: PR open, waiting for the user's review/merge. `dotnet test CoreTests` green (98/98), Unity compile headless exit 0, render check of the kill moment and the end card. Next: stage 6, only when the user says `/stage 6`.
 - Repo contains: CLAUDE.md, docs/SPEC.md, reference HTML prototype, `Assets/_Project/{Core,Config,View,Flow,Editor,Resources}`, `CoreTests/`.
 - Press Play in `SampleScene` (or any scene with a camera): `Flow/Bootstrap` creates everything from code.
 
@@ -62,7 +63,7 @@ Known issues / TODO:
 - Stage 4 hook: the Flow can show "Block their path!" when `sim.Worms[sim.Config.VictimBotIndex].VictimScriptActive` flips to true; the kill is a `Killed` event with `OtherId == player.Id` for that worm.
 Where Claude went wrong and how it was caught: the first acceptance probe showed the plain ported AI at 6-40% in the window and the *player* dying in 10-16% of runs. Initial reading was "the bot AI is too weak", but the killer ids were nearly always the same bot: the blind stand-in pilot was driving straight into it. Splitting the numbers by killer id (and giving the pilots a human-like "turn away from bodies" step) separated pilot stupidity from AI behaviour before any AI tuning was done on a wrong signal. The second catch: the guarantee flag silently made the lone test bot (which is also the victim) immortal in 8 older tests; they passed before only because the bot happened to be the victim. `OneBot()` is now a plain bot and `OneVictim()` is explicit.
 
-## Stage 4 — Flow + end card (PR open, not merged)
+## Stage 4 — Flow + end card (PR #4, merged 2026-10-12)
 Done: the whole 25-second loop is playable in the editor. Core `PlayableFlow` (Intro → Tutorial → Play → Climax → EndCard, 11 tests; +3 for `ViewMath.UiScale`, 81 total) decides what the screen shows and when it ends: kill + 1.8 s, 25 s after the first tap, or player death + 1.1 s (death overrides a pending kill and gives SO CLOSE; AWESOME needs a kill, NICE MOVES is a 25 s survivor). `Ad/`: `IAdNetwork` (GameReady, OpenStore, GameEnd), `EditorAdNetwork` (logs, opens nothing), `WebAdNetwork` + `Plugins/WebGL/WormRushAd.jslib` (`mraid.open`, else `window.open`, retried on the next pointerup if the popup blocker eats it), `AdNetworks` factory. `View/PlayableUi` + `UiKit`: uGUI canvas built from code with the length counter, persistent CTA, tutorial hand, "Block their path!" and the end card (title pop, pulsing button), layout in the reference's CSS px (390x844). `SimRunner` became `PlayableRunner`: input, sim, flow, draw; a tap on the CTA or anywhere on the end card calls `IAdNetwork.OpenStore`. `ScreenshotCapture` got `-shotState play|tutorial|end` and draws the UI too.
 Decisions:
 - The state machine lives in Core (`Core/PlayableFlow.cs`), not in `Flow/` as SPEC §3 sketches, so `dotnet test` covers it; the Unity side of Flow only drives it. Timings are `SimConfig` fields (`IntroSeconds`, `BlockHint*`, `EndAfter*`, `MaxPlaySeconds`); texts, store URLs and button colours are `PlayableConfig` fields.
@@ -79,10 +80,28 @@ Known issues / TODO:
 - `PlayableConfig.RestartDelaySeconds` was removed; the stale key stays in `PlayableConfig.asset` until it is re-saved.
 Where Claude went wrong and how it was caught: (1) the first flow tests passed the victim through the scenario with a free-running AI, so "far away" was only true for a few seconds and the kill came early; caught by reasoning about the loiter ring before running them, and fixed by parking the victim every step. (2) One test encoded a rule the reference does not have (the 25 s limit overriding a pending kill end); it failed, and the right answer was to delete the test, not to change the flow. (3) A screenshot crop looked like a pellet was drawn over the "Length" text; zooming to pixels showed the text was on top all along. The canvas sorting order stayed in as a cheap guard against the 2D renderer's distance sort. (4) The headless compile was blocked by the open editor; the first check was csc against Unity's DLLs and the built-in ugui sources (clean), then the user closed the editor for the real compile and render check.
 
+## Stage 5 — Juice (PR open, not merged)
+Done: shake, burst particles, popups and sounds, all driven by the sim's events. Core: `JuiceConfig` (every tunable + the sound cues), `JuiceState` (the rules: which event gives which shake / burst / popup / sound), `ScreenShake`, `ParticlePool` and `PopupPool` (fixed arrays, no allocation), `ComboMeter`, `ToneSynth` (17 tests, 98 total). View: `ParticleRenderer` (4th instanced layer above the worms, so a normal frame is 4-5 draw calls), `SoundBank`, popups inside `PlayableUi`, `CameraFollow.Apply(player, shakeX, shakeY)`. `PlayableRunner` runs `JuiceState` after the sim/flow step and plays what it asks for. `ScreenshotCapture` got `-shotState kill [-shotAfter s]` and draws the juice.
+Reference values kept: shake 0.35 s on a kill / 0.5 s on death (18 px per second left), 26 particles at 60-260 speed living 0.4-0.9 s, popups "+1 KILL!" at 1.6x and "+N" at 0.8x rising 40/s for 1.2 s, eat blip 420 Hz + 28 Hz per combo step (24 max), kill = square 660 then 990, death = sawtooth 140, end card = triangle 523 then 784.
+Decisions:
+- The rules live in Core (`JuiceState`), not in `View/Juice.cs` as SPEC §3 sketches, so `dotnet test` covers them; the View only draws and plays. Same call as `PlayableFlow` in stage 4.
+- Sounds are synthesized at start-up from the cues in `JuiceConfig` (`AudioClip.Create`, one clip per combo step for the eat blip), so there are no audio files and the build stays small. Delayed second notes are timed in `SoundBank.Update`, not `PlayDelayed`, to stay on the simplest Web audio path.
+- Deviations from the reference, all one value away from it: the eat streak starts over after `ComboWindowSeconds` (1.5 s; 0 = the reference's never-resetting streak); nothing but burst particles reacts under the end card (the reference keeps blipping on pellets over the AWESOME sound); the persistent CTA breathes by `CtaPulseAmount` (5%; 0 = the reference's still button). The end-card button pulse was already stage 4.
+- Popups are uGUI `Text`, a pool of `PopupCapacity` rasterised at one size and scaled to the world, so the zooming camera never regenerates the font atlas. Shake amplitude is in UI units (390x844 reference px) and converted to world units by the screen height.
+- Particle drag is `exp(-5 dt)` (the reference's x0.92 per 60 Hz frame), so it no longer depends on frame rate.
+Known issues / TODO:
+- Not heard and not felt: the render check shows a still of the kill (burst, popup, shake 0.07 s left), but the shake, the pitch ramp and the volumes have never been played. The values are the reference's, which is the best guess until someone listens.
+- `SoundBank` has never run in a Web build (Unity WebGL audio starts after the first user gesture, which the first tap is). Same status as `WebAdNetwork`: stage 7.
+- No mute: Web audio is on from the first tap. Networks usually want a mute hook; stage 6/7 if wanted.
+- `PlayableConfig.asset` was not re-saved: the new `Juice` block takes its C# defaults until the asset is next saved in the editor.
+- Particles are not in `ScreenshotCapture.Benchmark` (it draws without juice); a burst is at most 26 circles per death, so the cost is small, but it is not measured.
+Where Claude went wrong and how it was caught: first draft of `JuiceConfig` carried a `[Tooltip]`, a UnityEngine attribute in Core, and a leftover placeholder field; caught by re-reading the file before the first test run, not by the compiler (the CoreTests project would have refused the attribute, Unity's asmdef has `noEngineReferences`, so it would have been caught there too). The reference's `ended` flag is set when the card appears, not when it is scheduled, so `JuiceState` reads the end-card state of the previous frame: a kill on the very frame the card appears still gets its shake and popup, as in the reference.
+
 ## Backlog
-- Tutorial: a real hand sprite instead of the dot (stage 5 if wanted); merge the UI sprites into one atlas to drop a batch.
+- Tutorial: a real hand sprite instead of the dot; merge the UI sprites into one atlas to drop a batch.
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
-- Camera smoothing/shake offset hook (stage 5 juice).
+- Camera smoothing (the rigid follow is the reference's; shake itself is done).
 - Web build: disable Physics/Physics2D modules (stage 7).
-- Bots steer round bodies (the reference does not); would make the arena livelier and the 'SO CLOSE' end rarer (stage 5/6 if wanted).
+- Bots steer round bodies (the reference does not); would make the arena livelier and the 'SO CLOSE' end rarer (stage 6 if wanted).
 - Surface the victim knobs (`VictimDelaySeconds`, loiter distance, speed ramp) in the URL-parameter overrides (stage 6).
+- Mute hook / volume URL parameter (`JuiceConfig.MasterVolume` is already there), and the Web audio check (stage 6/7).

@@ -25,6 +25,17 @@ namespace WormRush.Config
         public string StoreUrlIos = "https://apps.apple.com/";
         public string StoreUrlAndroid = "https://play.google.com/store/apps";
 
+        [Header("Juice (shake, particles, popups, sounds)")]
+        public JuiceConfig Juice = new JuiceConfig();
+        public string KillPopupText = "+1 KILL!";
+        public string ValuePopupFormat = "+{0}";
+        public Color KillPopupColor = new Color32(0xff, 0xd2, 0x3f, 0xff);
+        public Color ValuePopupColor = Color.white;
+        public Color PopupOutlineColor = Color.black;
+        [Tooltip("The persistent CTA breathes by this fraction of its size. 0 = still, as in the reference.")]
+        public float CtaPulseAmount = 0.05f;
+        public float CtaPulseSeconds = 1.2f;
+
         [Header("Texts")]
         public string CtaText = "PLAY NOW";
         public string LengthLabel = "Length: ";
