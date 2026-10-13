@@ -5,11 +5,8 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
-using UnityEditor.SceneManagement;
 using UnityEditor.WebGL;
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.SceneManagement;
 
 namespace WormRush.EditorTools
 {
@@ -20,41 +17,27 @@ namespace WormRush.EditorTools
     ///         [-webExceptions none|explicit|full] [-webSymbols off|embedded]
     /// The last two are for diagnosing a crash in the browser (see <see cref="ExceptionsFromArgs"/>).
     ///
-    /// What makes it small, and why it is done here and not in ProjectSettings: the editor, the tests and the
-    /// render check keep running on URP exactly as before; only this build is switched, and every setting is put
-    /// back afterwards.
+    /// What makes it small (the project is on the built-in render pipeline, no URP package: URP's core forces the
+    /// Physics and Terrain modules and a large amount of managed code into the player):
     ///   - Brotli + "decompression fallback": the raw .wasm is over the 25 MiB per-file limit of Cloudflare, and a
     ///     static host does not send Content-Encoding for Unity's .br files, so the loader unpacks them in JS.
     ///   - IL2CPP "Optimize size", managed stripping High, wasm "Disk size with LTO", no exception support.
-    ///   - No render pipeline asset: the game draws flat circles and a uGUI canvas and needs nothing from URP, which
-    ///     drags its shaders, textures and a large amount of code into the player. Circle.shader has a built-in
-    ///     pipeline SubShader for this.
-    ///   - A generated one-camera scene instead of SampleScene (its URP components would keep URP's code alive).
+    /// The build script sets these through PlayerSettings and puts every value back, so ProjectSettings is unchanged.
     /// </summary>
     public static class WebBuild
     {
         const string DefaultOutput = "Builds/WebGL";
         const string BuildsFolder = "Builds";
-        const string TempScenePath = "Assets/_WebBuildScene.unity";
+        const string ScenePath = "Assets/Scenes/SampleScene.unity";   // one camera; the game bootstraps from code
         const string TemplateName = "PROJECT:WormRush";   // Assets/WebGLTemplates/WormRush
         const string CircleShaderPath = "Assets/_Project/View/Shaders/Circle.shader";
         const string InstancedMaterialPath = "Assets/_Project/Resources/CircleInstanced.mat";
-        const string MainCameraTag = "MainCamera";
         static readonly string[] SettingsFiles =
         {
             "ProjectSettings/ProjectSettings.asset",
-            "ProjectSettings/QualitySettings.asset",
-            "ProjectSettings/GraphicsSettings.asset",
         };
         const long PagesMaxFileBytes = 25L * 1024 * 1024; // Cloudflare: 25 MiB per file
         const float BytesPerMegabyte = 1024f * 1024f;
-
-        sealed class PipelineState
-        {
-            public RenderPipelineAsset Default;
-            public RenderPipelineAsset[] PerQualityLevel;
-            public int QualityLevel;
-        }
 
         [MenuItem("Worm Rush/Build Web (Cloudflare Pages)")]
         public static void BuildFromMenu()
@@ -106,9 +89,8 @@ namespace WormRush.EditorTools
             var codeGeneration = PlayerSettings.GetIl2CppCodeGeneration(named);
             var optimization = UserBuildSettings.codeOptimization;
             bool splash = PlayerSettings.SplashScreen.show;
+            bool unityLogo = PlayerSettings.SplashScreen.showUnityLogo;
             Dictionary<string, byte[]> settingsOnDisk = BackUpSettings();
-            PipelineState pipeline = null;
-            string openScene = SceneManager.GetActiveScene().path;
             BuildReport report;
             try
             {
@@ -123,18 +105,14 @@ namespace WormRush.EditorTools
                 PlayerSettings.SetManagedStrippingLevel(named, ManagedStrippingLevel.High);
                 PlayerSettings.SetIl2CppCodeGeneration(named, Il2CppCodeGeneration.OptimizeSize);
                 UserBuildSettings.codeOptimization = WasmCodeOptimization.DiskSizeLTO;
-                PlayerSettings.SplashScreen.show = false;   // a Personal licence may still keep it in the build
-                WebBuildStrip.Enabled = true;
-                pipeline = DropRenderPipeline();
-                if (!CreateBuildScene())
-                {
-                    Debug.LogError("[WebBuild] Cancelled: could not prepare the build scene.");
-                    return false;
-                }
+                // Both: with only `show` off the "Made with Unity" logo texture (2.7 MB raw, about 1 MB packed) is
+                // still written into the data file.
+                PlayerSettings.SplashScreen.show = false;
+                PlayerSettings.SplashScreen.showUnityLogo = false;
 
                 var options = new BuildPlayerOptions
                 {
-                    scenes = new[] { TempScenePath },
+                    scenes = new[] { ScenePath },
                     locationPathName = fullOutput,
                     target = BuildTarget.WebGL,
                     targetGroup = BuildTargetGroup.WebGL,
@@ -154,14 +132,8 @@ namespace WormRush.EditorTools
                 PlayerSettings.SetIl2CppCodeGeneration(named, codeGeneration);
                 UserBuildSettings.codeOptimization = optimization;
                 PlayerSettings.SplashScreen.show = splash;
-                WebBuildStrip.Enabled = false;
-                if (pipeline != null)
-                {
-                    RestoreRenderPipeline(pipeline);
-                }
-                ReopenScene(openScene);
+                PlayerSettings.SplashScreen.showUnityLogo = unityLogo;
                 RestoreSettingsOnDisk(settingsOnDisk);
-                AssetDatabase.DeleteAsset(TempScenePath);
             }
 
             BuildSummary summary = report.summary;
@@ -184,65 +156,6 @@ namespace WormRush.EditorTools
             }
             Debug.Log("[WebBuild] OK: " + (total / BytesPerMegabyte).ToString("0.00") + " MB in " + fullOutput);
             return true;
-        }
-
-        /// <summary>
-        /// Takes the render pipeline asset off the project (default and every quality level) for the build. The
-        /// player then runs on the built-in pipeline and URP's assets are not reachable, so they are not included.
-        /// </summary>
-        static PipelineState DropRenderPipeline()
-        {
-            var state = new PipelineState
-            {
-                Default = GraphicsSettings.defaultRenderPipeline,
-                QualityLevel = QualitySettings.GetQualityLevel(),
-                PerQualityLevel = new RenderPipelineAsset[QualitySettings.names.Length],
-            };
-            for (int level = 0; level < state.PerQualityLevel.Length; level++)
-            {
-                QualitySettings.SetQualityLevel(level, false);
-                state.PerQualityLevel[level] = QualitySettings.renderPipeline;
-                QualitySettings.renderPipeline = null;
-            }
-            QualitySettings.SetQualityLevel(state.QualityLevel, false);
-            GraphicsSettings.defaultRenderPipeline = null;
-            return state;
-        }
-
-        static void RestoreRenderPipeline(PipelineState state)
-        {
-            for (int level = 0; level < state.PerQualityLevel.Length; level++)
-            {
-                QualitySettings.SetQualityLevel(level, false);
-                QualitySettings.renderPipeline = state.PerQualityLevel[level];
-            }
-            QualitySettings.SetQualityLevel(state.QualityLevel, false);
-            GraphicsSettings.defaultRenderPipeline = state.Default;
-        }
-
-        /// <summary>
-        /// The playable builds everything from code (Flow/Bootstrap) and only needs a camera with the MainCamera tag.
-        /// The scene is made through the API, saved for the build and deleted again. It replaces the open scene
-        /// while the build runs (the editor asks to save first); <see cref="ReopenScene"/> brings it back.
-        /// </summary>
-        static bool CreateBuildScene()
-        {
-            if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-            {
-                return false;
-            }
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            var camera = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener)) { tag = MainCameraTag };
-            SceneManager.MoveGameObjectToScene(camera, scene);
-            return EditorSceneManager.SaveScene(scene, TempScenePath);
-        }
-
-        static void ReopenScene(string path)
-        {
-            if (!string.IsNullOrEmpty(path))
-            {
-                EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
-            }
         }
 
         /// <summary>
@@ -284,8 +197,31 @@ namespace WormRush.EditorTools
             }
             foreach (string module in info.includedModules.OrderBy(m => m))
             {
-                string why = string.Join(", ", info.GetReasonsForIncluding(module).Take(3));
-                Debug.Log("[WebBuild] module " + module + "  <-  " + why);
+                Debug.Log("[WebBuild] module " + module + "  <-  " + string.Join(", ", info.GetReasonsForIncluding(module).Take(3)));
+            }
+            // Why a module is there, a few steps back: this is what shows which package or setting keeps it alive.
+            foreach (string module in info.includedModules.OrderBy(m => m))
+            {
+                var seen = new HashSet<string> { module };
+                var line = new List<string> { module };
+                string current = module;
+                for (int depth = 0; depth < 6; depth++)
+                {
+                    string next = null;
+                    foreach (string reason in info.GetReasonsForIncluding(current))
+                    {
+                        string entity = reason.StartsWith("Required by ") ? reason.Substring("Required by ".Length) : reason;
+                        if (seen.Add(entity))
+                        {
+                            next = entity;
+                            break;
+                        }
+                    }
+                    if (next == null) break;
+                    line.Add(next);
+                    current = next;
+                }
+                Debug.Log("[WebBuild] chain " + string.Join("  <-  ", line));
             }
         }
 
