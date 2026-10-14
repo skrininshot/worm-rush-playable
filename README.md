@@ -36,7 +36,7 @@ Close the editor, or use the menu **Worm Rush → Build Web (Cloudflare Pages)**
   -executeMethod WormRush.EditorTools.WebBuild.Run -buildPath Builds/WebGL
 ```
 
-Output: `Builds/WebGL/` (git-ignored). Deploy to Cloudflare (Workers static assets, config in [wrangler.jsonc](wrangler.jsonc)):
+Output: `Builds/WebGL/`. This one folder is **committed** (the rest of `Builds/` is git-ignored): Cloudflare clones the repo and runs `npx wrangler deploy`, it cannot run Unity, so the finished build has to be in git. After every rebuild, commit `Builds/WebGL` and push. Deploy to Cloudflare (Workers static assets, config in [wrangler.jsonc](wrangler.jsonc)):
 
 ```bash
 npx wrangler deploy

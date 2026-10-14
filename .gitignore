@@ -10,7 +10,9 @@
 /[Tt]emp/
 /[Oo]bj/
 /[Bb]uild/
-/[Bb]uilds/
+/[Bb]uilds/*
+# ...except the Web build that Cloudflare deploys (it clones the repo and cannot run Unity)
+!/Builds/WebGL/
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
 *.log
