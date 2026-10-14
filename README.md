@@ -6,6 +6,14 @@ A 25-second 2D io-snake playable ad in Unity 6. Drag to steer, eat, block the ot
 
 Built in **2 days with Claude Code**. Claude wrote and tested the code stage by stage; I reviewed every stage as a human, played it, and sent back corrections on mechanics and UI.
 
+<p align="center">
+  <img src="docs/screenshots/1-tutorial.png" width="23%" alt="Tutorial: the hand shows the drag">
+  <img src="docs/screenshots/2-play.png" width="23%" alt="Play: the player's worm and a bot">
+  <img src="docs/screenshots/3-kill.png" width="23%" alt="The kill: burst, +1 NICE!, screen shake">
+  <img src="docs/screenshots/4-end-card.png" width="23%" alt="End card with the store button">
+</p>
+<p align="center"><sub>Tutorial → play → the guaranteed kill → end card. Frames rendered headless by the project's own <code>ScreenshotCapture</code> tool through the real renderer and UI.</sub></p>
+
 ## What is in it
 
 - **Core** (plain C#, no `UnityEngine`, 143 NUnit tests): deterministic worm simulation, own spatial hash instead of Physics2D, bot AI, a guaranteed "kill the victim" climax, flow state machine, UI/juice animation rules.

@@ -14,7 +14,7 @@ namespace WormRush.EditorTools
     /// saves a PNG. Needs a GPU, so run WITHOUT -nographics:
     ///   Unity -batchmode -quit -projectPath . -executeMethod WormRush.EditorTools.ScreenshotCapture.Run
     ///         -shotPath out.png -shotWidth 540 -shotHeight 960 -shotSeconds 6 -shotSeed 7
-    ///         [-shotHeading 0.6] [-shotViewSpan 480] [-shotState play|tutorial|end|kill] [-shotAfter 0.25] [-shotPopups 1] [-shotUiSeconds 1.25] [-shotPressAt 2.0] -logFile log.txt
+    ///         [-shotHeading 0.6] [-shotViewSpan 480] [-shotState play|tutorial|end|kill] [-shotAfter 0.25] [-shotPopups 1] [-shotSteer 1] [-shotUiSeconds 1.25] [-shotPressAt 2.0] -logFile log.txt
     /// -shotState: play = tapped, run -shotSeconds, then draw (HUD, "Block their path!" window);
     ///             tutorial = never tapped (the hand); end = run until the end card shows, then draw it;
     ///             kill = run until the player's first kill, then -shotAfter more seconds (burst, "+1 NICE!", shake).
@@ -63,8 +63,10 @@ namespace WormRush.EditorTools
             JuiceState juice = new JuiceState(config.Juice, seed);
             float limit = state == "end" ? EndSearchSeconds : (state == "kill" ? KillSearchSeconds : seconds);
             float killedAt = -1f;
+            bool steer = Arg("-shotSteer", "0") == "1";
             for (float t = 0f; t < limit; t += StepSeconds)
             {
+                if (steer) SteerAtVictim(sim);
                 sim.Step(StepSeconds);
                 flow.Update();
                 juice.Update(sim, flow, StepSeconds);
@@ -122,6 +124,19 @@ namespace WormRush.EditorTools
                       ", particles " + juice.Particles.Count + ", popups " + juice.Popups.Count + ", shake " + juice.ShakeRemaining.ToString("F2") + ")");
             ui.Dispose();
             world.Dispose();
+        }
+
+        /// <summary>-shotSteer 1: the player heads for the victim's head, so its body lies across the victim's path (for -shotState kill).</summary>
+        static void SteerAtVictim(WormSim sim)
+        {
+            for (int i = 0; i < sim.Worms.Count; i++)
+            {
+                Worm worm = sim.Worms[i];
+                if (!worm.IsVictim || !worm.Alive) continue;
+                Vec2 from = sim.Player.Head;
+                sim.SetPlayerHeading(MathF.Atan2(worm.Head.Y - from.Y, worm.Head.X - from.X));
+                return;
+            }
         }
 
         /// <summary>
