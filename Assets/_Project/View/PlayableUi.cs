@@ -102,7 +102,8 @@ namespace WormRush.View
         const float ShineAlpha = 0.65f;
         const float ShineTravelPad = 0.2f;     // of the button width
 
-        const float OutlineDistance = 2.5f;
+        // Hint labels ("Drag to move", the block-path line): the same thin ring rim as the button labels, no drop.
+        const float HintTextOutline = 1.5f;
         // Button labels: white with a dark rim and a short drop, so they pop off the gradient (see UiKit.AddRim).
         const float ButtonTextOutline = 1.5f;
         const float EndButtonTextOutline = 2f;
@@ -220,7 +221,7 @@ namespace WormRush.View
 
             _blockHint = _kit.NewText("BlockHint", root, config.BlockPathText, BlockFontSize, config.HintColor);
             UiKit.Place(_blockHint.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -BlockTop), new Vector2(360f, 30f));
-            UiKit.AddOutline(_blockHint, stroke, OutlineDistance);
+            UiKit.AddRim(_blockHint, stroke, HintTextOutline, 0f);
 
             // Tutorial finger. Children are in draw order: label, trail, touch light, ripple, hand shadow, hand.
             _gesture = new TutorialGesture(config.UiJuice);
@@ -233,7 +234,7 @@ namespace WormRush.View
             Text tutorialLabel = _kit.NewText("Label", _tutorial, config.TutorialText, TutorialFontSize, Color.white);
             UiKit.Place(tutorialLabel.rectTransform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, config.UiJuice.TutorialRadius + TutorialLabelGap), new Vector2(360f, 34f));
-            UiKit.AddOutline(tutorialLabel, stroke, OutlineDistance);
+            UiKit.AddRim(tutorialLabel, stroke, HintTextOutline, 0f);
 
             _tutorialTrail = new Image[_gesture.TrailDots];
             for (int i = 0; i < _tutorialTrail.Length; i++)

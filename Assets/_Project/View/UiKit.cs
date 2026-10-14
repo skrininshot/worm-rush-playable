@@ -181,8 +181,8 @@ namespace WormRush.View
         }
 
         /// <summary>
-        /// A hand with the index finger raised (a pointing cursor), painted as layers back to front: finger and palm
-        /// as one smooth shape, three curled fingers, the thumb. Every layer has its own dark outline, so the
+        /// A hand with the index finger raised (a pointing cursor), painted as layers back to front: three curled fingers,
+        /// the thumb, then the finger and palm as one smooth shape on top. Every layer has its own dark outline, so the
         /// fingers read as separate. Signed distances keep the edges anti-aliased and the outline an exact offset.
         /// Transparent outside, but dark, so bilinear sampling leaves no pale halo.
         /// </summary>
@@ -201,8 +201,10 @@ namespace WormRush.View
                     float green = 0f;
                     float blue = 0f;
                     float alpha = 0f;
-                    for (int layer = 0; layer < HandLayers; layer++)
+                    for (int step = 0; step < HandLayers; step++)
                     {
+                        // The curled fingers and thumb first, the finger-and-palm shape (layer 0) last, on top of them.
+                        int layer = (step + 1) % HandLayers;
                         float d = HandLayerDistance(layer, px, py);
                         Over(ref red, ref green, ref blue, ref alpha, HandOutlineColor.r / 255f, HandOutlineColor.g / 255f,
                             HandOutlineColor.b / 255f, Mathf.Clamp01(0.5f - (d - HandOutline)));
@@ -413,13 +415,6 @@ namespace WormRush.View
             text.supportRichText = false;
             text.raycastTarget = false;
             return text;
-        }
-
-        public static void AddOutline(Text text, Color color, float distance)
-        {
-            Outline outline = text.gameObject.AddComponent<Outline>();
-            outline.effectColor = color;
-            outline.effectDistance = new Vector2(distance, -distance);
         }
 
         /// <summary>A clean rim of <paramref name="radius"/> round the label with a short <paramref name="drop"/> under it.</summary>
