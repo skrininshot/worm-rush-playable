@@ -189,6 +189,11 @@ Done: the popup uses `UiKit.AddRim` (a ring of 12 copies, the same effect as the
 Build: **2.98 MiB** (wasm 2.14, data 0.67, loader 0.11, framework 0.06), `Builds/WebGL` rebuilt and committed. Within the 2-5 MB limit.
 Checked: `dotnet test CoreTests` 143/143, Unity compile clean, render check at 540x960 with both popups. Not checked: the rebuilt Web build in a browser (only the popup mesh effect changed; `TextRim` is already used by the buttons in that build), feel on a device.
 
+### Hint hand layers, thin hint text rim (on `popup-outline-neutral-text`)
+Request: on the "Drag to move" hint the big part of the hand (finger + palm) was the bottom layer; it must be on top of the other four. The hint text outline was too fat.
+Done: `UiKit.PaintHand` paints the curled fingers and thumb first and the finger-and-palm shape last, so the main part covers them and the knuckles peek out behind it. "Drag to move" and "Block their path!" use `UiKit.AddRim` (ring of 12 copies, 1.5 px, like the button labels) instead of Unity's `Outline` at 2.5 px diagonal; `AddOutline` is removed, no text uses it any more.
+Checked: Unity compile clean, render check (`-shotState tutorial -shotSeconds 3`, `-shotState play`). Not done: the Web build was not rebuilt (needs the editor build step); rebuild `Builds/WebGL` before the next deploy.
+
 ## Backlog
 - Stage 6: `ShowRestartButton` as a URL parameter (off by default for real ad networks); decide whether a restart should reset or re-fire `GameEnd`.
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
