@@ -3,10 +3,7 @@
     "rootNamespace": "WormRush.EditorTools",
     "references": [
         "WormRush.Core",
-        "WormRush.Game",
-        "Unity.RenderPipelines.Core.Runtime",
-        "Unity.RenderPipelines.Core.Editor",
-        "Unity.RenderPipelines.Universal.Runtime"
+        "WormRush.Game"
     ],
     "includePlatforms": [
         "Editor"

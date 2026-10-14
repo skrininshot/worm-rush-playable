@@ -1,6 +1,5 @@
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 using UnityEngine;
-using UnityEngine.InputSystem;
 using WormRush.Core;
 using WormRush.Flow;
 
@@ -25,8 +24,7 @@ namespace WormRush.View
         void Update()
         {
             _smoothedDelta += (Time.unscaledDeltaTime - _smoothedDelta) * SmoothingPerFrame;
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.f1Key.wasPressedThisFrame) _visible = !_visible;
+            if (Input.GetKeyDown(KeyCode.F1)) _visible = !_visible;
         }
 
         void OnGUI()
