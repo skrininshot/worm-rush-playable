@@ -27,7 +27,7 @@ namespace WormRush.Config
 
         [Header("Juice (shake, particles, popups, sounds)")]
         public JuiceConfig Juice = new JuiceConfig();
-        public string KillPopupText = "+1 KILL!";
+        public string KillPopupText = "+1 NICE!";
         public string ValuePopupFormat = "+{0}";
         public Color KillPopupColor = new Color32(0xff, 0xd2, 0x3f, 0xff);
         public Color ValuePopupColor = Color.white;

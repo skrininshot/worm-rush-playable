@@ -127,7 +127,7 @@ namespace WormRush.Core
 
     public enum PopupKind : byte
     {
-        /// <summary>"+1 KILL!" over the head of a worm the player just killed.</summary>
+        /// <summary>"+1 NICE!" over the head of a worm the player just killed.</summary>
         Kill,
 
         /// <summary>"+N" where the player ate a pellet worth N.</summary>

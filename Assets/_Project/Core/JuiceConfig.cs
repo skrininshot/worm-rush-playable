@@ -52,7 +52,7 @@ namespace WormRush.Core
         public float ParticleDrag = 5f;             // 1/s; the reference's x0.92 per 60 Hz frame
         public float ParticleRadius = 5f;
 
-        // ---- Popups ("+1 KILL!", "+3") ----
+        // ---- Popups ("+1 NICE!", "+3") ----
         public int PopupCapacity = 8;
         public float PopupLifeSeconds = 1.2f;
         public float PopupFadeSeconds = 0.5f;       // alpha ramps down over the last this-many seconds
