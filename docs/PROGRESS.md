@@ -194,6 +194,12 @@ Request: on the "Drag to move" hint the big part of the hand (finger + palm) was
 Done: `UiKit.PaintHand` paints the curled fingers and thumb first and the finger-and-palm shape last, so the main part covers them and the knuckles peek out behind it. "Drag to move" and "Block their path!" use `UiKit.AddRim` (ring of 12 copies, 1.5 px, like the button labels) instead of Unity's `Outline` at 2.5 px diagonal; `AddOutline` is removed, no text uses it any more.
 Checked: Unity compile clean, render check (`-shotState tutorial -shotSeconds 3`, `-shotState play`). Not done: the Web build was not rebuilt (needs the editor build step); rebuild `Builds/WebGL` before the next deploy.
 
+### Cloudflare deploy fix: rebuild Web (PR `cloudflare-redeploy`)
+Request: the Cloudflare git deploy failed with `assets.directory ... Builds/WebGL does not exist`.
+Cause: Cloudflare built a commit that has `wrangler.jsonc` but not the committed `Builds/WebGL` (PR #8 state / a preview branch), not `main`. A clean clone of `main` (`c7277e1`) passes `wrangler deploy --dry-run`. Pushing to `main` directly is blocked, so a new commit comes through this PR.
+Done: `Builds/WebGL` rebuilt (`WebBuild.Run`), now includes the hint-hand layering change from the previous entry. Size **2.98 MiB**.
+Not checked: the rebuilt build in a browser (the changed code is UI paint only).
+
 ## Backlog
 - Stage 6: `ShowRestartButton` as a URL parameter (off by default for real ad networks); decide whether a restart should reset or re-fire `GameEnd`.
 - Flow: if the 25 s limit should cut a pending kill/death end short, make `PlayableFlow` take the earlier of the two.
