@@ -109,10 +109,11 @@ namespace WormRush.View
         const float ButtonTextDrop = 1f;
         const float EndButtonTextDrop = 1.5f;
 
-        // World popups ("+1 KILL!", "+3"): the Text is rasterised at this size and scaled to match the world, so a
-        // zooming camera never makes the font atlas regenerate. The outline follows the reference (5 px on 26).
+        // World popups ("+1 NICE!", "+3"): the Text is rasterised at this size and scaled to match the world, so a
+        // zooming camera never makes the font atlas regenerate. The rim is thin (the reference's 5 px on 26 made a
+        // fat, lumpy edge) and is a ring of copies (UiKit.AddRim), not Unity's four diagonal ones.
         const int PopupRasterFontSize = 48;
-        const float PopupOutlineFraction = 0.1f;
+        const float PopupOutlineFraction = 0.04f;
         const float PopupBoxWidth = 360f;
         const float PopupBoxHeight = 64f;
 
@@ -208,7 +209,7 @@ namespace WormRush.View
             {
                 Text popup = _kit.NewText("Popup", root, "", PopupRasterFontSize, Color.white);
                 UiKit.Place(popup.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(PopupBoxWidth, PopupBoxHeight));
-                UiKit.AddOutline(popup, config.PopupOutlineColor, PopupRasterFontSize * PopupOutlineFraction);
+                UiKit.AddRim(popup, config.PopupOutlineColor, PopupRasterFontSize * PopupOutlineFraction, 0f);
                 popup.gameObject.SetActive(false);
                 _popups[i] = popup;
             }

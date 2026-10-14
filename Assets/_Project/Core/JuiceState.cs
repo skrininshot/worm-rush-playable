@@ -35,7 +35,7 @@ namespace WormRush.Core
     /// the shake offset and <see cref="Sounds"/> after <see cref="Update"/>.
     ///
     /// Rules, as in the reference: every death bursts into particles; once the end card is up, nothing else
-    /// reacts; the player's kill gives shake, "+1 KILL!" and a two-note blip; the player's death gives a
+    /// reacts; the player's kill gives shake, "+1 NICE!" and a two-note blip; the player's death gives a
     /// bigger shake and a low buzz; eating gives a rising blip per combo step and "+N" for bigger pellets.
     /// </summary>
     public sealed class JuiceState

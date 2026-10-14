@@ -14,10 +14,10 @@ namespace WormRush.EditorTools
     /// saves a PNG. Needs a GPU, so run WITHOUT -nographics:
     ///   Unity -batchmode -quit -projectPath . -executeMethod WormRush.EditorTools.ScreenshotCapture.Run
     ///         -shotPath out.png -shotWidth 540 -shotHeight 960 -shotSeconds 6 -shotSeed 7
-    ///         [-shotHeading 0.6] [-shotViewSpan 480] [-shotState play|tutorial|end|kill] [-shotAfter 0.25] [-shotUiSeconds 1.25] [-shotPressAt 2.0] -logFile log.txt
+    ///         [-shotHeading 0.6] [-shotViewSpan 480] [-shotState play|tutorial|end|kill] [-shotAfter 0.25] [-shotPopups 1] [-shotUiSeconds 1.25] [-shotPressAt 2.0] -logFile log.txt
     /// -shotState: play = tapped, run -shotSeconds, then draw (HUD, "Block their path!" window);
     ///             tutorial = never tapped (the hand); end = run until the end card shows, then draw it;
-    ///             kill = run until the player's first kill, then -shotAfter more seconds (burst, "+1 KILL!", shake).
+    ///             kill = run until the player's first kill, then -shotAfter more seconds (burst, "+1 NICE!", shake).
     /// </summary>
     public static class ScreenshotCapture
     {
@@ -74,6 +74,14 @@ namespace WormRush.EditorTools
                     if (killedAt < 0f && flow.Kills > 0) killedAt = t;
                     if (killedAt >= 0f && t >= killedAt + after) break;
                 }
+            }
+
+            // -shotPopups 1: a kill popup and a value popup beside the player, to look at their outline and text.
+            if (Arg("-shotPopups", "0") == "1")
+            {
+                Vec2 head = sim.Player.Head;
+                juice.Popups.Spawn(head.X + 30f, head.Y + config.Juice.PopupSpawnLift, PopupKind.Kill, 0, config.Juice.PopupKillScale);
+                juice.Popups.Spawn(head.X - 30f, head.Y - 20f, PopupKind.Value, 3, config.Juice.PopupValueScale);
             }
 
             RenderTexture target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
